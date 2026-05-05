@@ -10,12 +10,12 @@ import {
 } from "@/lib/vigil";
 import { useRouter } from "next/navigation";
 
-// ─── Style tokens (same as setup) ─────────────────────────────────────────
+// ─── Style tokens ─────────────────────────────────────────────────────────
 const G = {
-  bg: "#050505", glass: "rgba(255,255,255,0.04)", glassBorder: "rgba(255,255,255,0.09)",
+  bg: "#030303", glass: "rgba(200,200,200,0.04)", glassBorder: "rgba(255,255,255,0.08)",
   emerald: "#10b981", emeraldDim: "rgba(16,185,129,0.1)", emeraldBorder: "rgba(16,185,129,0.2)",
-  text: "#ffffff", textMuted: "#9ca3af", textDim: "#6b7280",
-  inputBg: "rgba(255,255,255,0.04)", inputBorder: "rgba(255,255,255,0.1)",
+  text: "#ffffff", textMuted: "#a1a1aa", textDim: "#52525b",
+  inputBg: "rgba(255,255,255,0.03)", inputBorder: "rgba(255,255,255,0.08)",
   danger: "#ef4444",
 };
 
@@ -41,7 +41,7 @@ function timeRemaining(lastCheckin: number, intervalDays: number, gracePeriodDay
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}>
-      <div style={{ width: "100%", maxWidth: 480, background: "#0d0d0d", border: `1px solid ${G.glassBorder}`, borderRadius: 24, padding: "32px 28px", backdropFilter: "blur(24px)", animation: "modalIn 0.2s ease" }}>
+      <div className="liquid-glass-dark" style={{ width: "100%", maxWidth: 480, borderRadius: 24, padding: "32px 28px", animation: "modalIn 0.2s ease" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{title}</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", color: G.textDim, cursor: "pointer", fontSize: 22, padding: 4 }}>×</button>
@@ -233,7 +233,8 @@ export default function DashboardPage() {
   // ── States ───────────────────────────────────────────────────────────
   if (!publicKey) {
     return (
-      <div style={{ minHeight: "100vh", background: G.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "100vh", background: G.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif" }}>
+        <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
         <div style={{ textAlign: "center" }}>
           <p style={{ color: G.textMuted, marginBottom: 16, fontSize: 15 }}>Conectá tu wallet para ver tu dashboard</p>
           <WalletMultiButton />
@@ -245,7 +246,8 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: G.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 24, height: 24, border: "2px solid rgba(255,255,255,0.1)", borderTopColor: G.emerald, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+        <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
+        <div style={{ width: 24, height: 24, border: "2px solid rgba(255,255,255,0.08)", borderTopColor: "rgba(255,255,255,0.6)", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     );
@@ -264,12 +266,15 @@ export default function DashboardPage() {
   }));
 
   return (
-    <div style={{ minHeight: "100vh", background: G.bg, color: G.text, fontFamily: "system-ui, -apple-system, sans-serif", padding: "0 20px 60px", position: "relative", overflow: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: G.bg, color: G.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif", padding: "0 20px 60px", position: "relative", overflow: "hidden" }}>
 
-      {/* Background blobs */}
+      {/* Noise */}
+      <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
+
+      {/* Ambient blobs */}
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
-        <div style={{ position: "absolute", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 65%)", top: "-15%", left: "-10%", animation: "blob1 18s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.05) 0%, transparent 65%)", bottom: "0", right: "0", animation: "blob2 22s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.02) 0%, transparent 65%)", top: "-15%", left: "-10%", animation: "blob1 18s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.015) 0%, transparent 65%)", bottom: "0", right: "0", animation: "blob2 22s ease-in-out infinite" }} />
       </div>
       <style>{`@keyframes blob1{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-20px)}}@keyframes blob2{0%,100%{transform:translate(0,0)}50%{transform:translate(-20px,15px)}}`}</style>
 
@@ -277,8 +282,8 @@ export default function DashboardPage() {
       <div style={{ position: "relative", zIndex: 10, maxWidth: 720, margin: "0 auto", paddingTop: 24, paddingBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <a href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-            <svg width="18" height="18" viewBox="0 0 32 32" fill="none"><path d="M4 16 L10 10 L16 20 L22 6 L28 16" stroke={G.emerald} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><circle cx="28" cy="16" r="3" fill={G.emerald} /></svg>
-            <span style={{ fontSize: 16, fontWeight: 700, color: G.text }}>Vigil</span>
+            <img src="/logo.png" alt="Vigil" style={{ width: 24, height: 24, objectFit: "contain" }} />
+            <span style={{ fontSize: 16, fontWeight: 700, color: G.text, letterSpacing: "-0.02em" }}>Vigil</span>
           </a>
         </div>
         <WalletMultiButton style={{ fontSize: 13 }} />
@@ -287,7 +292,7 @@ export default function DashboardPage() {
       <div style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
 
         {/* Status banner */}
-        <div style={{ background: isActive ? G.glass : "rgba(239,68,68,0.06)", border: `1px solid ${isActive ? G.glassBorder : "rgba(239,68,68,0.2)"}`, borderRadius: 20, padding: "20px 24px", backdropFilter: "blur(16px)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ background: isActive ? G.glass : "rgba(239,68,68,0.06)", border: `1px solid ${isActive ? G.glassBorder : "rgba(239,68,68,0.2)"}`, borderRadius: 20, padding: "20px 24px", backdropFilter: "blur(50px) saturate(200%)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: isActive ? G.emerald : G.danger, boxShadow: `0 0 8px ${isActive ? G.emerald : G.danger}` }} />
@@ -317,7 +322,7 @@ export default function DashboardPage() {
         {isActive && (
           <>
             {/* Timer + check-in */}
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(16px)" }}>
+            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(50px) saturate(200%)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                 <div>
                   <div style={{ fontSize: 12, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Tiempo hasta vencimiento</div>
@@ -366,7 +371,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Beneficiaries */}
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(16px)" }}>
+            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(50px) saturate(200%)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>Beneficiarios</div>
                 <button onClick={() => setEditBens(true)}
@@ -400,7 +405,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Settings */}
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(16px)" }}>
+            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(50px) saturate(200%)" }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Configuración</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {[
@@ -421,7 +426,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Claim link */}
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "20px 24px", backdropFilter: "blur(16px)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "20px 24px", backdropFilter: "blur(50px) saturate(200%)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <div>
                 <div style={{ fontSize: 12, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>Link para beneficiarios</div>
                 <div style={{ fontSize: 12, color: G.textMuted, fontFamily: "monospace" }}>{claimUrl.slice(0, 50)}...</div>

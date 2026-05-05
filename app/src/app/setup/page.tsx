@@ -10,19 +10,19 @@ import { useRouter } from "next/navigation";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 const G = {
-  bg: "#050505",
-  glass: "rgba(255,255,255,0.04)",
-  glassBorder: "rgba(255,255,255,0.09)",
-  glassBorderHover: "rgba(16,185,129,0.3)",
+  bg: "#030303",
+  glass: "rgba(200,200,200,0.04)",
+  glassBorder: "rgba(255,255,255,0.08)",
+  glassBorderHover: "rgba(255,255,255,0.2)",
   emerald: "#10b981",
   emeraldDim: "rgba(16,185,129,0.1)",
   emeraldBorder: "rgba(16,185,129,0.2)",
   text: "#ffffff",
-  textMuted: "#9ca3af",
-  textDim: "#6b7280",
-  inputBg: "rgba(255,255,255,0.04)",
-  inputBorder: "rgba(255,255,255,0.1)",
-  inputFocus: "rgba(16,185,129,0.5)",
+  textMuted: "#a1a1aa",
+  textDim: "#52525b",
+  inputBg: "rgba(255,255,255,0.03)",
+  inputBorder: "rgba(255,255,255,0.08)",
+  inputFocus: "rgba(255,255,255,0.25)",
   danger: "#ef4444",
 };
 
@@ -113,9 +113,9 @@ function StepCard({ visible, children }: { visible: boolean; children: React.Rea
 // ─── Hint box ─────────────────────────────────────────────────────────────
 function Hint({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", gap: 10, background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, borderRadius: 12, padding: "12px 14px", marginBottom: 20 }}>
+    <div style={{ display: "flex", gap: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 14px", marginBottom: 20 }}>
       <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
-      <p style={{ fontSize: 13, color: "#d1fae5", lineHeight: 1.55, margin: 0 }}>{children}</p>
+      <p style={{ fontSize: 13, color: "#a1a1aa", lineHeight: 1.55, margin: 0 }}>{children}</p>
     </div>
   );
 }
@@ -225,20 +225,23 @@ export default function SetupPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100vh", background: G.bg, color: G.text, fontFamily: "system-ui, -apple-system, sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", position: "relative", overflow: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: G.bg, color: G.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", position: "relative", overflow: "hidden" }}>
 
-      {/* Background blobs */}
+      {/* Noise */}
+      <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
+
+      {/* Ambient blobs */}
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
-        <div style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 65%)", top: "-20%", left: "-15%", animation: "blob1 18s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 65%)", bottom: "-10%", right: "-5%", animation: "blob2 22s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.025) 0%, transparent 65%)", top: "-20%", left: "-15%", animation: "blob1 18s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.015) 0%, transparent 65%)", bottom: "-10%", right: "-5%", animation: "blob2 22s ease-in-out infinite" }} />
       </div>
 
       <style>{`
         @keyframes blob1{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,-30px)}}
         @keyframes blob2{0%,100%{transform:translate(0,0)}50%{transform:translate(-30px,20px)}}
-        input:focus{border-color:rgba(16,185,129,0.5)!important;box-shadow:0 0 0 3px rgba(16,185,129,0.08)}
+        input:focus{border-color:rgba(255,255,255,0.25)!important;box-shadow:0 0 0 3px rgba(255,255,255,0.05)}
         input[type=number]::-webkit-inner-spin-button{opacity:0.5}
-        .tok-btn:hover{border-color:rgba(16,185,129,0.3)!important;background:rgba(16,185,129,0.05)!important}
+        .tok-btn:hover{border-color:rgba(255,255,255,0.2)!important;background:rgba(255,255,255,0.04)!important}
       `}</style>
 
       {/* Back link */}
@@ -258,12 +261,9 @@ export default function SetupPage() {
         {/* Step 0: Connect */}
         {step === 0 && (
           <StepCard visible={visible}>
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 28, padding: "48px 40px", backdropFilter: "blur(24px)", textAlign: "center" }}>
-              <div style={{ width: 64, height: 64, borderRadius: 18, background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
-                <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
-                  <path d="M4 16 L10 10 L16 20 L22 6 L28 16" stroke={G.emerald} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="28" cy="16" r="3" fill={G.emerald} />
-                </svg>
+            <div className="liquid-glass" style={{ borderRadius: 28, padding: "48px 40px", textAlign: "center" }}>
+              <div style={{ width: 64, height: 64, borderRadius: 18, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+                <img src="/logo.png" alt="Vigil" style={{ width: 36, height: 36, objectFit: "contain" }} />
               </div>
 
               <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12 }}>Bienvenido a Vigil</h1>
@@ -272,7 +272,7 @@ export default function SetupPage() {
               </p>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center" }}>
-                <WalletMultiButton style={{ width: "100%", maxWidth: 320, justifyContent: "center", background: G.emerald, borderRadius: 14, padding: "14px 24px", fontSize: 15, fontWeight: 700 }} />
+                <WalletMultiButton style={{ width: "100%", maxWidth: 320, justifyContent: "center", borderRadius: 999, padding: "14px 24px", fontSize: 15, fontWeight: 600 }} />
                 <p style={{ fontSize: 12, color: G.textDim }}>Phantom, Solflare, y más · Devnet</p>
               </div>
 
@@ -296,7 +296,7 @@ export default function SetupPage() {
         {/* Steps 1–4 */}
         {step >= 1 && (
           <StepCard visible={visible}>
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 28, padding: "40px 36px", backdropFilter: "blur(24px)" }}>
+            <div className="liquid-glass" style={{ borderRadius: 28, padding: "40px 36px" }}>
 
               <ProgressDots current={step - 1} total={4} />
 

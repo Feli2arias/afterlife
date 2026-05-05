@@ -15,6 +15,18 @@ interface VaultData {
   lastCheckin: { toNumber: () => number };
 }
 
+const G = {
+  bg: "#030303",
+  glassBorder: "rgba(255,255,255,0.08)",
+  text: "#ffffff",
+  textMuted: "#a1a1aa",
+  textDim: "#52525b",
+  emerald: "#10b981",
+  emeraldDim: "rgba(16,185,129,0.1)",
+  emeraldBorder: "rgba(16,185,129,0.2)",
+  danger: "#ef4444",
+};
+
 export default function ClaimPage({ params }: { params: Promise<{ owner: string }> }) {
   const { owner: ownerParam } = use(params);
   const { publicKey, signTransaction } = useWallet();
@@ -34,7 +46,6 @@ export default function ClaimPage({ params }: { params: Promise<{ owner: string 
         const ownerPk = new PublicKey(ownerParam);
         const bal = await connection.getBalance(ownerPk);
         setSolBalance(bal / LAMPORTS_PER_SOL);
-
         if (!wallet) return;
         const provider = new AnchorProvider(connection, wallet, {});
         const program = getProgram(provider);
@@ -50,7 +61,6 @@ export default function ClaimPage({ params }: { params: Promise<{ owner: string 
     load();
   }, [ownerParam, wallet, connection]);
 
-  // Check caller's wSOL balance when wallet connects
   useEffect(() => {
     if (!publicKey) return;
     getAssociatedTokenAddress(NATIVE_MINT, publicKey)
@@ -64,9 +74,7 @@ export default function ClaimPage({ params }: { params: Promise<{ owner: string 
     setClaiming(true);
     try {
       const wsolAta = await getAssociatedTokenAddress(NATIVE_MINT, publicKey);
-      const tx = new Transaction().add(
-        createCloseAccountInstruction(wsolAta, publicKey, publicKey)
-      );
+      const tx = new Transaction().add(createCloseAccountInstruction(wsolAta, publicKey, publicKey));
       const { blockhash } = await connection.getLatestBlockhash();
       tx.recentBlockhash = blockhash;
       tx.feePayer = publicKey;
@@ -84,113 +92,118 @@ export default function ClaimPage({ params }: { params: Promise<{ owner: string 
   const myShare = vault?.beneficiaries.find(
     b => publicKey && b.wallet.toBase58() === publicKey.toBase58()
   );
-
   const isExpired = vault && !vault.isActive;
   const hasWsol = wsolBalance > 0n;
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 mx-auto rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-            <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-              <path d="M4 16 L10 10 L16 20 L22 6 L28 16" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="28" cy="16" r="3" fill="#10b981"/>
-            </svg>
+    <div style={{ minHeight: "100vh", background: G.bg, color: G.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif", position: "relative" }}>
+
+      {/* Noise */}
+      <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
+
+      {/* Ambient */}
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.02) 0%, transparent 65%)", top: "-10%", left: "0", animation: "blob1 18s ease-in-out infinite" }} />
+      </div>
+      <style>{`@keyframes blob1{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-20px)}}`}</style>
+
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 440, display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 8 }}>
+          <div style={{ width: 52, height: 52, margin: "0 auto 16px", borderRadius: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <img src="/logo.png" alt="Vigil" style={{ width: 30, height: 30, objectFit: "contain" }} />
           </div>
-          <h1 className="text-2xl font-bold">Vigil — Reclamar activos</h1>
-          <p className="text-gray-500 text-sm font-mono">
+          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 6 }}>Vigil — Reclamar activos</h1>
+          <p style={{ fontSize: 12, color: G.textDim, fontFamily: "monospace" }}>
             {ownerParam.slice(0, 8)}...{ownerParam.slice(-6)}
           </p>
         </div>
 
-        {loading && <p className="text-center text-gray-500 text-sm">Cargando...</p>}
+        {loading && <p style={{ textAlign: "center", color: G.textDim, fontSize: 14 }}>Cargando...</p>}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm text-center">
+          <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 16, padding: "16px", color: G.danger, fontSize: 14, textAlign: "center" }}>
             {error}
           </div>
         )}
 
         {!loading && !error && vault && (
-          <div className="space-y-4">
-            <div className={`rounded-xl p-4 border text-center ${
-              isExpired ? "bg-emerald-500/10 border-emerald-500/30" : "bg-yellow-500/10 border-yellow-500/30"
-            }`}>
-              <div className={`text-sm font-medium ${isExpired ? "text-emerald-400" : "text-yellow-400"}`}>
+          <>
+            {/* Status */}
+            <div className="liquid-glass" style={{ borderRadius: 20, padding: "16px 20px", textAlign: "center" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: isExpired ? G.emerald : "#f59e0b" }}>
                 {isExpired ? "✓ Distribución activada" : "⏳ Vigil activo — aún no distribuible"}
               </div>
-              {!isExpired && <p className="text-xs text-gray-500 mt-1">El titular todavía está activo.</p>}
+              {!isExpired && <p style={{ fontSize: 12, color: G.textDim, marginTop: 4 }}>El titular todavía está activo.</p>}
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-              <h3 className="text-sm font-medium text-gray-300">Distribución</h3>
-              {vault.beneficiaries.map((b, i) => {
-                const isMe = publicKey && b.wallet.toBase58() === publicKey.toBase58();
-                return (
-                  <div key={i} className={`flex items-center justify-between text-sm p-2 rounded-lg ${isMe ? "bg-emerald-500/10 border border-emerald-500/30" : ""}`}>
-                    <span className={`font-mono text-xs ${isMe ? "text-emerald-300" : "text-gray-400"}`}>
-                      {b.wallet.toBase58().slice(0, 8)}...{b.wallet.toBase58().slice(-4)}
-                      {isMe && <span className="ml-2 text-emerald-500 not-italic font-sans">← vos</span>}
-                    </span>
-                    <div className="text-right">
-                      <div className={`font-semibold ${isMe ? "text-emerald-400" : "text-gray-300"}`}>
-                        {b.shareBps / 100}%
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        ≈ {((solBalance * b.shareBps) / 10_000).toFixed(4)} SOL
+            {/* Distribution */}
+            <div className="liquid-glass" style={{ borderRadius: 20, padding: "20px" }}>
+              <h3 style={{ fontSize: 12, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Distribución</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {vault.beneficiaries.map((b, i) => {
+                  const isMe = publicKey && b.wallet.toBase58() === publicKey.toBase58();
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 12, background: isMe ? G.emeraldDim : "rgba(255,255,255,0.02)", border: `1px solid ${isMe ? G.emeraldBorder : G.glassBorder}` }}>
+                      <span style={{ fontSize: 12, fontFamily: "monospace", color: isMe ? "#86efac" : G.textMuted }}>
+                        {b.wallet.toBase58().slice(0, 8)}...{b.wallet.toBase58().slice(-4)}
+                        {isMe && <span style={{ marginLeft: 8, fontSize: 11, color: G.emerald }}> ← vos</span>}
+                      </span>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: isMe ? G.emerald : G.text }}>{b.shareBps / 100}%</div>
+                        <div style={{ fontSize: 11, color: G.textDim }}>≈ {((solBalance * b.shareBps) / 10_000).toFixed(4)} SOL</div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
 
+            {/* Wallet / Claim */}
             {!publicKey ? (
-              <div className="text-center space-y-3">
-                <p className="text-sm text-gray-400">Conectá tu wallet para ver si sos beneficiario</p>
+              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+                <p style={{ fontSize: 14, color: G.textMuted }}>Conectá tu wallet para ver si sos beneficiario</p>
                 <WalletMultiButton />
               </div>
             ) : myShare ? (
-              <div className="space-y-3">
-                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center">
-                  <p className="text-emerald-300 font-medium">Sos beneficiario</p>
-                  <p className="text-sm text-gray-400 mt-1">
+              <>
+                <div style={{ background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, borderRadius: 16, padding: "16px 20px", textAlign: "center" }}>
+                  <p style={{ color: "#86efac", fontWeight: 600, fontSize: 14 }}>Sos beneficiario</p>
+                  <p style={{ fontSize: 13, color: G.textMuted, marginTop: 4 }}>
                     Te corresponde el {myShare.shareBps / 100}% ≈ {((solBalance * myShare.shareBps) / 10_000).toFixed(4)} SOL
                   </p>
                 </div>
 
                 {isExpired && hasWsol && !claimed && (
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">wSOL disponible</span>
-                      <span className="font-medium text-emerald-400">
-                        {(Number(wsolBalance) / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                      </span>
+                  <div className="liquid-glass" style={{ borderRadius: 20, padding: "20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
+                      <span style={{ color: G.textMuted }}>wSOL disponible</span>
+                      <span style={{ fontWeight: 600, color: G.emerald }}>{(Number(wsolBalance) / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
                     </div>
                     <button
                       onClick={claimWsol}
                       disabled={claiming}
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-xl font-medium transition-colors"
+                      style={{ width: "100%", padding: "13px", borderRadius: 14, background: claiming ? "rgba(16,185,129,0.5)" : G.emerald, color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: claiming ? "default" : "pointer", transition: "all 0.2s", opacity: claiming ? 0.7 : 1 }}
                     >
                       {claiming ? "Procesando..." : "Reclamar SOL"}
                     </button>
-                    <p className="text-xs text-gray-500 text-center">Convierte tu wSOL a SOL nativo</p>
+                    <p style={{ fontSize: 12, color: G.textDim, textAlign: "center" }}>Convierte tu wSOL a SOL nativo</p>
                   </div>
                 )}
 
-                {(claimed || (isExpired && !hasWsol && wsolBalance === 0n && myShare)) && (
-                  <div className="bg-emerald-600/20 border border-emerald-500/30 rounded-xl p-4 text-center text-sm text-emerald-300">
+                {(claimed || (isExpired && !hasWsol && myShare)) && (
+                  <div style={{ background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, borderRadius: 16, padding: "16px", textAlign: "center", fontSize: 14, color: "#86efac" }}>
                     {claimed ? "✓ SOL reclamado exitosamente" : "Los activos fueron distribuidos a tu wallet."}
                   </div>
                 )}
-              </div>
+              </>
             ) : (
-              <p className="text-center text-sm text-gray-500">
+              <p style={{ textAlign: "center", fontSize: 14, color: G.textDim }}>
                 Tu wallet no figura como beneficiaria de este Vigil.
               </p>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
