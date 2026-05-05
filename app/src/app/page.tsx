@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
+import { AnchorProvider } from "@coral-xyz/anchor";
+import { useRouter } from "next/navigation";
+import { getProgram, fetchVaultConfig } from "@/lib/vigil";
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -188,12 +192,24 @@ function HeroCard() {
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { publicKey } = useWallet();
+  const wallet = useAnchorWallet();
+  const { connection } = useConnection();
+  const router = useRouter();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  async function handleGetStarted() {
+    if (!publicKey || !wallet) { router.push("/setup"); return; }
+    const provider = new AnchorProvider(connection, wallet, {});
+    const program = getProgram(provider);
+    const existing = await fetchVaultConfig(program, publicKey);
+    router.push(existing ? "/dashboard" : "/setup");
+  }
 
   return (
     <div style={{ background: "#050505", color: "white", fontFamily: "system-ui, -apple-system, sans-serif", overflowX: "hidden" }}>
@@ -309,13 +325,13 @@ export default function HomePage() {
             </p>
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link href="/setup" className="cta-btn" style={{
+              <button onClick={handleGetStarted} className="cta-btn" style={{
                 padding: "14px 32px", borderRadius: 12, background: "#10b981",
-                color: "white", fontSize: 15, fontWeight: 700, textDecoration: "none",
+                color: "white", fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer",
                 display: "inline-block",
               }}>
                 Get Started
-              </Link>
+              </button>
               <a href="#how-it-works" className="outline-btn" style={{
                 padding: "14px 32px", borderRadius: 12,
                 background: "rgba(255,255,255,0.04)",
@@ -495,12 +511,12 @@ export default function HomePage() {
               Takes less than 2 minutes to set up. No email, no KYC, no trust required.
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-              <Link href="/setup" className="cta-btn" style={{
+              <button onClick={handleGetStarted} className="cta-btn" style={{
                 padding: "16px 40px", borderRadius: 14, background: "#10b981",
-                color: "white", fontSize: 16, fontWeight: 700, textDecoration: "none", display: "inline-block",
+                color: "white", fontSize: 16, fontWeight: 700, border: "none", cursor: "pointer", display: "inline-block",
               }}>
                 Start with Vigil
-              </Link>
+              </button>
               <Link href="/dashboard" className="outline-btn" style={{
                 padding: "16px 32px", borderRadius: 14,
                 background: "rgba(255,255,255,0.04)",
