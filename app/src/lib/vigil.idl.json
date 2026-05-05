@@ -1,0 +1,472 @@
+{
+  "address": "4pKCmz43y8apgNqoAZVhYba11r5MyW6fiDnH3WGb16Uu",
+  "metadata": {
+    "name": "vigil",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "cancel",
+      "discriminator": [
+        232,
+        219,
+        223,
+        41,
+        219,
+        236,
+        220,
+        190
+      ],
+      "accounts": [
+        {
+          "name": "vault_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  105,
+                  103,
+                  105,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault_config"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "checkin",
+      "discriminator": [
+        223,
+        175,
+        165,
+        27,
+        123,
+        7,
+        54,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "vault_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  105,
+                  103,
+                  105,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault_config"
+          ]
+        },
+        {
+          "name": "fee_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "execute_distribution",
+      "discriminator": [
+        163,
+        217,
+        35,
+        57,
+        238,
+        179,
+        71,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "vault_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  105,
+                  103,
+                  105,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault_config.owner",
+                "account": "VaultConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "force_expire",
+      "discriminator": [
+        181,
+        233,
+        225,
+        150,
+        213,
+        57,
+        145,
+        169
+      ],
+      "accounts": [
+        {
+          "name": "vault_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  105,
+                  103,
+                  105,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "vault_config"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register",
+      "discriminator": [
+        211,
+        124,
+        67,
+        15,
+        211,
+        194,
+        178,
+        240
+      ],
+      "accounts": [
+        {
+          "name": "vault_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  105,
+                  103,
+                  105,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "beneficiaries",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "Beneficiary"
+              }
+            }
+          }
+        },
+        {
+          "name": "interval_days",
+          "type": "u16"
+        },
+        {
+          "name": "grace_period_days",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "VaultConfig",
+      "discriminator": [
+        99,
+        86,
+        43,
+        216,
+        184,
+        102,
+        119,
+        77
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CheckinEvent",
+      "discriminator": [
+        145,
+        176,
+        78,
+        141,
+        171,
+        88,
+        144,
+        236
+      ]
+    },
+    {
+      "name": "DistributionExecutedEvent",
+      "discriminator": [
+        118,
+        98,
+        20,
+        184,
+        228,
+        10,
+        171,
+        114
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidShares",
+      "msg": "Share basis points must sum to 10000"
+    },
+    {
+      "code": 6001,
+      "name": "TooManyBeneficiaries",
+      "msg": "Too many beneficiaries (max 5)"
+    },
+    {
+      "code": 6002,
+      "name": "NoBeneficiaries",
+      "msg": "At least one beneficiary required"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidInterval",
+      "msg": "Interval must be 30, 60, or 90 days"
+    },
+    {
+      "code": 6004,
+      "name": "VaultInactive",
+      "msg": "Vault is not active"
+    },
+    {
+      "code": 6005,
+      "name": "TimerNotExpired",
+      "msg": "Timer has not expired yet"
+    },
+    {
+      "code": 6006,
+      "name": "Unauthorized",
+      "msg": "Only the owner can perform this action"
+    }
+  ],
+  "types": [
+    {
+      "name": "Beneficiary",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "share_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CheckinEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "next_deadline",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DistributionExecutedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "beneficiary_count",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VaultConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "beneficiaries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Beneficiary"
+                }
+              }
+            }
+          },
+          {
+            "name": "interval_days",
+            "type": "u16"
+          },
+          {
+            "name": "grace_period_days",
+            "type": "u8"
+          },
+          {
+            "name": "last_checkin",
+            "type": "i64"
+          },
+          {
+            "name": "_reserved",
+            "type": "u64"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
