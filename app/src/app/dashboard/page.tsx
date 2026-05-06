@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useRef, useState, useCallback, useEffect } from "react";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
@@ -8,15 +8,22 @@ import {
   getProgram, fetchVaultConfig, forceExpire, executeDistribution,
   cancelVault, registerVault, checkin, BeneficiaryInput,
 } from "@/lib/vigil";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-// ─── Style tokens ─────────────────────────────────────────────────────────
-const G = {
-  bg: "#030303", glass: "rgba(200,200,200,0.04)", glassBorder: "rgba(255,255,255,0.08)",
-  emerald: "#10b981", emeraldDim: "rgba(16,185,129,0.1)", emeraldBorder: "rgba(16,185,129,0.2)",
-  text: "#ffffff", textMuted: "#a1a1aa", textDim: "#52525b",
-  inputBg: "rgba(255,255,255,0.03)", inputBorder: "rgba(255,255,255,0.08)",
-  danger: "#ef4444",
+const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif";
+const MONO = "'Courier New', Courier, monospace";
+
+const DEMO_VAULT = {
+  owner: { toBase58: () => "Demo1111111111111111111111111111111111111111" },
+  beneficiaries: [
+    { wallet: { toBase58: () => "Bene1abc123def456ghi789jkl012mno345pqr678stu" }, shareBps: 5000 },
+    { wallet: { toBase58: () => "Bene2xyz987wvu654tsr321qpo098nml765kji432hg" }, shareBps: 3000 },
+    { wallet: { toBase58: () => "Bene3zzz111aaa222bbb333ccc444ddd555eee666ff" }, shareBps: 2000 },
+  ],
+  isActive: true,
+  intervalDays: 60,
+  gracePeriodDays: 7,
+  lastCheckin: { toNumber: () => Math.floor(Date.now() / 1000) - 18 * 86400 },
 };
 
 type VaultData = {
@@ -32,137 +39,425 @@ function timeRemaining(lastCheckin: number, intervalDays: number, gracePeriodDay
   const deadline = lastCheckin + (intervalDays + gracePeriodDays) * 86_400;
   const now = Math.floor(Date.now() / 1000);
   const remaining = deadline - now;
-  if (remaining <= 0) return { expired: true, days: 0, hours: 0, pct: 0 };
+  if (remaining <= 0) return { expired: true, days: 0, hours: 0, mins: 0, secs: 0, pct: 0, remaining: 0 };
   const total = (intervalDays + gracePeriodDays) * 86_400;
-  return { expired: false, days: Math.floor(remaining / 86_400), hours: Math.floor((remaining % 86_400) / 3600), pct: Math.round((remaining / total) * 100) };
+  return {
+    expired: false,
+    days: Math.floor(remaining / 86_400),
+    hours: Math.floor((remaining % 86_400) / 3600),
+    mins: Math.floor((remaining % 3600) / 60),
+    secs: remaining % 60,
+    pct: Math.round((remaining / total) * 100),
+    remaining,
+  };
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+// ─── Hold-to-confirm button ────────────────────────────────────────────────
+
+function HoldToConfirm({ onConfirm, loading }: { onConfirm: () => void; loading: boolean }) {
+  const [progress, setProgress] = useState(0);
+  const [holding, setHolding] = useState(false);
+  const [done, setDone] = useState(false);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number | null>(null);
+  const DURATION = 2000;
+
+  const tick = useCallback((ts: number) => {
+    if (!startRef.current) startRef.current = ts;
+    const pct = Math.min(((ts - startRef.current) / DURATION) * 100, 100);
+    setProgress(pct);
+    if (pct < 100) {
+      rafRef.current = requestAnimationFrame(tick);
+    } else {
+      setHolding(false);
+      setDone(true);
+      setProgress(0);
+      startRef.current = null;
+      onConfirm();
+      setTimeout(() => setDone(false), 1500);
+    }
+  }, [onConfirm]);
+
+  const begin = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (loading || done) return;
+    setHolding(true);
+    startRef.current = null;
+    rafRef.current = requestAnimationFrame(tick);
+  }, [loading, done, tick]);
+
+  const end = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (holding) { setHolding(false); setProgress(0); startRef.current = null; }
+  }, [holding]);
+
+  const filled = Math.round(progress / 100 * 28);
+  const barStr = "█".repeat(filled) + "░".repeat(28 - filled);
+
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}>
-      <div className="liquid-glass-dark" style={{ width: "100%", maxWidth: 480, borderRadius: 24, padding: "32px 28px", animation: "modalIn 0.2s ease" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{title}</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: G.textDim, cursor: "pointer", fontSize: 22, padding: 4 }}>×</button>
-        </div>
-        {children}
+    <button
+      onMouseDown={begin} onMouseUp={end} onMouseLeave={end}
+      onTouchStart={begin} onTouchEnd={end}
+      disabled={loading}
+      style={{
+        position: "relative", overflow: "hidden",
+        width: "100%", padding: "32px 24px",
+        background: done
+          ? "rgba(255,255,255,0.04)"
+          : holding
+          ? "rgba(220,38,38,0.06)"
+          : "linear-gradient(145deg, rgba(200,200,200,0.05) 0%, rgba(200,200,200,0.01) 100%)",
+        border: `1px solid ${done ? "rgba(255,255,255,0.2)" : holding ? "rgba(220,38,38,0.5)" : "rgba(255,255,255,0.08)"}`,
+        borderTopColor: holding ? "rgba(220,38,38,0.7)" : done ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.15)",
+        borderRadius: 20,
+        backdropFilter: "blur(50px) saturate(200%)",
+        WebkitBackdropFilter: "blur(50px) saturate(200%)",
+        boxShadow: holding
+          ? "0 0 0 1px rgba(220,38,38,0.2), 0 30px 60px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.1)"
+          : "0 30px 60px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.2), inset 0 -1px 1px rgba(0,0,0,0.4)",
+        cursor: loading ? "default" : "pointer",
+        userSelect: "none", WebkitUserSelect: "none",
+        outline: "none",
+        transition: "background 0.3s, border-color 0.3s, box-shadow 0.3s",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
+      }}
+    >
+      {/* Red fill sweep */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, bottom: 0,
+        width: `${progress}%`,
+        background: "linear-gradient(90deg, rgba(220,38,38,0.15), rgba(220,38,38,0.04))",
+        borderRadius: "20px 0 0 20px",
+        pointerEvents: "none",
+        transition: "none",
+      }} />
+      {/* Top edge glow */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, height: 1,
+        width: `${progress}%`,
+        background: "linear-gradient(90deg, #dc2626, rgba(220,38,38,0.3))",
+        borderRadius: 20,
+        boxShadow: "0 0 12px rgba(220,38,38,0.6)",
+        opacity: holding ? 1 : 0,
+        transition: "none",
+      }} />
+      {/* Label */}
+      <div style={{
+        position: "relative",
+        fontFamily: SF, fontSize: 12, fontWeight: 600,
+        letterSpacing: "0.08em", textTransform: "uppercase",
+        color: done ? "rgba(255,255,255,0.8)" : holding ? "#ef4444" : "rgba(255,255,255,0.4)",
+        transition: "color 0.3s",
+      }}>
+        {loading ? "Procesando..." : done ? "✓ Señal recibida" : holding ? "No sueltes..." : "Mantener para confirmar"}
       </div>
-      <style>{`@keyframes modalIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}`}</style>
+      {/* Unicode bar */}
+      <div style={{
+        position: "relative",
+        fontFamily: MONO, fontSize: 12, letterSpacing: "0.05em",
+        color: holding ? "rgba(220,38,38,0.7)" : "rgba(255,255,255,0.1)",
+        transition: "color 0.3s",
+      }}>
+        {barStr}
+      </div>
+    </button>
+  );
+}
+
+// ─── Timer ─────────────────────────────────────────────────────────────────
+
+function VaultTimer({ days, hours, mins, secs, pct, expired }: {
+  days: number; hours: number; mins: number; secs: number; pct: number; expired: boolean;
+}) {
+  const filled = Math.round(pct / 100 * 36);
+  const bar = "█".repeat(filled) + "░".repeat(36 - filled);
+
+  return (
+    <div className="liquid-glass" style={{ borderRadius: 24, padding: "36px 32px", width: "100%", textAlign: "center" }}>
+      {/* Status label */}
+      <div style={{
+        fontFamily: SF, fontSize: 11, fontWeight: 500,
+        letterSpacing: "0.12em", textTransform: "uppercase",
+        color: expired ? "#ef4444" : "rgba(255,255,255,0.3)",
+        marginBottom: 28,
+      }}>
+        {expired ? "Tiempo agotado" : "Vault activo · Solana Devnet"}
+      </div>
+
+      {!expired ? (
+        <>
+          {/* Numbers */}
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+            {[
+              { v: String(days).padStart(2, "0"), l: "días" },
+              { v: String(hours).padStart(2, "0"), l: "hrs" },
+              { v: String(mins).padStart(2, "0"), l: "min" },
+              { v: String(secs).padStart(2, "0"), l: "seg" },
+            ].map(({ v, l }, i, arr) => (
+              <div key={l} style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <div style={{
+                    fontFamily: MONO,
+                    fontSize: l === "días" ? "clamp(48px, 10vw, 88px)" : "clamp(32px, 7vw, 60px)",
+                    fontWeight: 700, lineHeight: 1,
+                    letterSpacing: "-0.04em",
+                    color: "white",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>{v}</div>
+                  <div style={{ fontFamily: SF, fontSize: 9, letterSpacing: "0.2em", color: "rgba(255,255,255,0.25)", textTransform: "uppercase" }}>{l}</div>
+                </div>
+                {i < arr.length - 1 && (
+                  <div style={{ fontFamily: MONO, fontSize: "clamp(24px,5vw,44px)", color: "rgba(255,255,255,0.15)", lineHeight: 1, paddingBottom: 22 }}>:</div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Unicode bar */}
+          <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.04em", color: "rgba(255,255,255,0.12)", marginBottom: 8 }}>{bar}</div>
+          <div style={{ fontFamily: SF, fontSize: 11, color: "rgba(255,255,255,0.2)" }}>{pct}% restante</div>
+        </>
+      ) : (
+        <div style={{ fontFamily: MONO, fontSize: "clamp(40px, 8vw, 72px)", fontWeight: 700, color: "#dc2626", letterSpacing: "-0.04em" }}>
+          00:00:00
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── EditIntervalModal ────────────────────────────────────────────────────
-function EditIntervalModal({ current, grace, onSave, onClose, loading }: { current: number; grace: number; onSave: (days: number, grace: number) => void; onClose: () => void; loading: boolean }) {
+// ─── Info panel (bottom sheet) ─────────────────────────────────────────────
+
+function InfoPanel({
+  open, onClose, vault, solBal, publicKey, isDemo,
+  onEditInterval, onEditBens, onSimulate, simulating, simMsg, claimUrl,
+}: {
+  open: boolean; onClose: () => void;
+  vault: VaultData; solBal: number; publicKey: string; isDemo: boolean;
+  onEditInterval: () => void; onEditBens: () => void;
+  onSimulate: () => void; simulating: boolean; simMsg: string; claimUrl: string;
+}) {
+  return (
+    <>
+      <div onClick={onClose} style={{
+        position: "fixed", inset: 0, zIndex: 40,
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)",
+        opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none",
+        transition: "opacity 0.3s",
+      }} />
+
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50,
+        background: "linear-gradient(135deg, rgba(20,20,20,0.92) 0%, rgba(10,10,10,0.85) 100%)",
+        backdropFilter: "blur(40px) saturate(180%)",
+        WebkitBackdropFilter: "blur(40px) saturate(180%)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderTopColor: "rgba(255,255,255,0.12)",
+        borderBottom: "none",
+        borderRadius: "24px 24px 0 0",
+        padding: "0 0 40px",
+        maxHeight: "80vh", overflowY: "auto",
+        transform: open ? "translateY(0)" : "translateY(100%)",
+        transition: "transform 0.38s cubic-bezier(0.32, 0.72, 0, 1)",
+        boxShadow: "0 -20px 60px rgba(0,0,0,0.8), inset 0 1px 1px rgba(255,255,255,0.08)",
+        fontFamily: SF,
+      }}>
+        {/* Drag handle */}
+        <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 0" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)" }} />
+        </div>
+
+        {/* Header */}
+        <div style={{ padding: "14px 24px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "rgba(10,10,10,0.8)", backdropFilter: "blur(20px)", zIndex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>Detalles</div>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "5px 14px", fontFamily: SF }}>Cerrar</button>
+        </div>
+
+        <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Beneficiaries */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>Beneficiarios</div>
+              <button onClick={onEditBens} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 11, padding: "4px 12px", fontFamily: SF }}>Editar</button>
+            </div>
+            {vault.beneficiaries.map((b, i) => {
+              const pct = b.shareBps / 100;
+              const sol = (solBal * b.shareBps / 10_000).toFixed(3);
+              return (
+                <div key={i} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "12px 14px", marginBottom: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontFamily: MONO, color: "rgba(255,255,255,0.4)" }}>{b.wallet.toBase58().slice(0, 8)}...{b.wallet.toBase58().slice(-6)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>{pct}% · ~{sol} SOL</span>
+                  </div>
+                  <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2 }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: "rgba(255,255,255,0.35)", borderRadius: 2, transition: "width 0.6s ease" }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Settings */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>Configuración</div>
+              <button onClick={onEditInterval} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 11, padding: "4px 12px", fontFamily: SF }}>Modificar</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[
+                { l: "Frecuencia", v: `Cada ${vault.intervalDays} días` },
+                { l: "Período de gracia", v: vault.gracePeriodDays === 0 ? "Ninguno" : `+${vault.gracePeriodDays} días` },
+              ].map(({ l, v }) => (
+                <div key={l} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px" }}>
+                  <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)", marginBottom: 6 }}>{l}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Claim link */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 12 }}>Link para beneficiarios</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "10px 14px", fontSize: 11, fontFamily: MONO, color: "rgba(255,255,255,0.3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {claimUrl}
+              </div>
+              <button onClick={() => navigator.clipboard.writeText(claimUrl)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "10px 16px", fontFamily: SF, flexShrink: 0 }}>Copiar</button>
+            </div>
+          </div>
+
+          {/* Demo zone */}
+          {isDemo && (
+            <div style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 16, padding: "18px" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(220,38,38,0.6)", marginBottom: 12 }}>Demo — Simular expiración</div>
+              <button onClick={onSimulate} disabled={simulating} style={{ background: simulating ? "rgba(220,38,38,0.1)" : "rgba(220,38,38,0.15)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 12, color: "#ef4444", cursor: simulating ? "default" : "pointer", fontSize: 13, fontWeight: 600, padding: "11px 18px", fontFamily: SF, opacity: simulating ? 0.6 : 1, transition: "all 0.2s" }}>
+                {simulating ? "Simulando..." : "☠ Ejecutar distribución"}
+              </button>
+              {simMsg && <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 10 }}>{simMsg}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Modals ────────────────────────────────────────────────────────────────
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(12px)" }}>
+      <div className="liquid-glass-dark" style={{ width: "100%", maxWidth: 480, borderRadius: 24, padding: "28px 24px", animation: "modalIn 0.2s ease", fontFamily: SF }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{title}</div>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 14, padding: "4px 12px" }}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function EditIntervalModal({ current, grace, onSave, onClose, loading }: { current: number; grace: number; onSave: (d: number, g: number) => void; onClose: () => void; loading: boolean }) {
   const [days, setDays] = useState(current);
   const [gr, setGr] = useState(grace);
   return (
-    <Modal title="Modificar check-in" onClose={onClose}>
-      <p style={{ fontSize: 13, color: G.textMuted, marginBottom: 20, lineHeight: 1.6 }}>
-        Cambia la frecuencia con la que debés confirmar que seguís vivo. Se cancelará y recreará tu vault.
-      </p>
+    <Modal title="Modificar frecuencia" onClose={onClose}>
+      <div style={{ marginBottom: 8, fontSize: 11, color: "rgba(255,255,255,0.35)", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>Intervalo de check-in</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
         {[30, 60, 90].map(d => (
-          <button key={d} onClick={() => setDays(d)}
-            style={{ padding: "14px 8px", borderRadius: 12, border: `2px solid ${days === d ? G.emerald : G.glassBorder}`, background: days === d ? G.emeraldDim : "transparent", color: days === d ? G.text : G.textMuted, cursor: "pointer", fontWeight: days === d ? 700 : 400, fontSize: 14, transition: "all 0.2s" }}>
-            {d} días
-          </button>
+          <button key={d} onClick={() => setDays(d)} style={{ padding: "14px", borderRadius: 14, border: `1px solid ${days === d ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.08)"}`, background: days === d ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)", color: days === d ? "white" : "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 15, fontWeight: 700, fontFamily: SF, transition: "all 0.15s" }}>{d} días</button>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+      <div style={{ marginBottom: 8, fontSize: 11, color: "rgba(255,255,255,0.35)", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>Período de gracia</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
         {[0, 3, 7, 14].map(d => (
-          <button key={d} onClick={() => setGr(d)}
-            style={{ flex: 1, padding: "8px 4px", borderRadius: 10, border: `1px solid ${gr === d ? G.emerald : G.glassBorder}`, background: gr === d ? G.emeraldDim : "transparent", color: gr === d ? G.emerald : G.textDim, fontSize: 12, cursor: "pointer", transition: "all 0.2s" }}>
+          <button key={d} onClick={() => setGr(d)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, border: `1px solid ${gr === d ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.08)"}`, background: gr === d ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)", color: gr === d ? "white" : "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: SF, transition: "all 0.15s" }}>
             {d === 0 ? "Sin gracia" : `+${d}d`}
           </button>
         ))}
       </div>
-      <button onClick={() => onSave(days, gr)} disabled={loading}
-        style={{ width: "100%", padding: "13px", borderRadius: 12, background: loading ? "rgba(16,185,129,0.5)" : G.emerald, color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: loading ? "default" : "pointer", transition: "all 0.2s" }}>
-        {loading ? "Guardando..." : "Guardar cambios"}
+      <button onClick={() => onSave(days, gr)} disabled={loading} style={{ width: "100%", padding: "14px", borderRadius: 14, background: loading ? "rgba(255,255,255,0.3)" : "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: loading ? "default" : "pointer", fontFamily: SF }}>
+        {loading ? "Guardando..." : "Guardar"}
       </button>
     </Modal>
   );
 }
 
-// ─── EditBeneficiariesModal ───────────────────────────────────────────────
 function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { initialRows: Array<{ wallet: string; share: number }>; onSave: (rows: BeneficiaryInput[]) => void; onClose: () => void; loading: boolean }) {
   const [rows, setRows] = useState(initialRows);
   const [error, setError] = useState("");
   const total = rows.reduce((s, r) => s + Number(r.share || 0), 0);
 
   function validate(): BeneficiaryInput[] | null {
-    if (Math.abs(total - 100) > 0.01) { setError("Los porcentajes deben sumar 100%"); return null; }
+    if (Math.abs(total - 100) > 0.01) { setError("La suma debe ser 100%"); return null; }
     const result: BeneficiaryInput[] = [];
     for (const row of rows) {
       try { result.push({ wallet: new PublicKey(row.wallet.trim()), shareBps: Math.round(row.share * 100) }); }
-      catch { setError(`Wallet inválida: ${row.wallet.slice(0, 20)}`); return null; }
+      catch { setError(`Wallet inválida: ${row.wallet.slice(0, 16)}`); return null; }
     }
     return result;
   }
 
   return (
     <Modal title="Editar beneficiarios" onClose={onClose}>
-      <p style={{ fontSize: 13, color: G.textMuted, marginBottom: 16, lineHeight: 1.6 }}>
-        Al guardar, se cancelará y recreará tu vault con la nueva configuración.
-      </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {rows.map((row, i) => (
           <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input value={row.wallet}
-              onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, wallet: e.target.value } : r))}
-              placeholder="Wallet address"
-              style={{ flex: 1, background: G.inputBg, border: `1px solid ${G.inputBorder}`, borderRadius: 10, padding: "10px 12px", fontSize: 12, color: G.text, fontFamily: "monospace", outline: "none" }} />
-            <input type="number" min={1} max={100} value={row.share}
-              onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, share: Number(e.target.value) } : r))}
-              style={{ width: 60, background: G.inputBg, border: `1px solid ${G.inputBorder}`, borderRadius: 10, padding: "10px 8px", fontSize: 13, color: G.text, textAlign: "center", outline: "none" }} />
-            <span style={{ fontSize: 12, color: G.textDim }}>%</span>
-            {rows.length > 1 && (
-              <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))}
-                style={{ background: "none", border: "none", color: G.textDim, cursor: "pointer", fontSize: 16 }}>×</button>
-            )}
+            <input value={row.wallet} onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, wallet: e.target.value } : r))} placeholder="Dirección de wallet" style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 12px", fontSize: 12, color: "white", fontFamily: MONO, outline: "none" }} />
+            <input type="number" min={1} max={100} value={row.share} onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, share: Number(e.target.value) } : r))} style={{ width: 56, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 6px", fontSize: 13, color: "white", textAlign: "center", fontFamily: SF, outline: "none" }} />
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>%</span>
+            {rows.length > 1 && <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", fontSize: 16, padding: "0 4px" }}>×</button>}
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <button onClick={() => rows.length < 5 && setRows(prev => [...prev, { wallet: "", share: 0 }])}
-          disabled={rows.length >= 5}
-          style={{ background: "none", border: "none", color: G.emerald, cursor: "pointer", fontSize: 13, padding: 0 }}>
-          + Agregar
-        </button>
-        <span style={{ fontSize: 13, fontWeight: 600, color: Math.abs(total - 100) < 0.01 ? G.emerald : G.danger }}>{total}%</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <button onClick={() => rows.length < 5 && setRows(prev => [...prev, { wallet: "", share: 0 }])} disabled={rows.length >= 5} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, fontFamily: SF, padding: 0 }}>+ Agregar</button>
+        <span style={{ fontSize: 13, fontWeight: 700, color: Math.abs(total - 100) < 0.01 ? "rgba(255,255,255,0.6)" : "#ef4444" }}>{total}%</span>
       </div>
-      {error && <p style={{ fontSize: 12, color: G.danger, marginBottom: 12 }}>{error}</p>}
-      <button onClick={() => { const v = validate(); if (v) onSave(v); }} disabled={loading}
-        style={{ width: "100%", padding: "13px", borderRadius: 12, background: loading ? "rgba(16,185,129,0.5)" : G.emerald, color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: loading ? "default" : "pointer" }}>
-        {loading ? "Guardando..." : "Guardar cambios"}
+      {error && <p style={{ fontSize: 12, color: "#ef4444", marginBottom: 12 }}>{error}</p>}
+      <button onClick={() => { const v = validate(); if (v) onSave(v); }} disabled={loading} style={{ width: "100%", padding: "14px", borderRadius: 14, background: loading ? "rgba(255,255,255,0.3)" : "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: loading ? "default" : "pointer", fontFamily: SF }}>
+        {loading ? "Guardando..." : "Guardar"}
       </button>
     </Modal>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────
+// ─── Main ──────────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
+  return <Suspense><DashboardContent /></Suspense>;
+}
+
+function DashboardContent() {
   const { publicKey } = useWallet();
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isDemo = searchParams.get("demo") === "1";
 
-  const [vault, setVault] = useState<VaultData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [solBal, setSolBal] = useState(0);
-
-  // Modals
+  const [vault, setVault] = useState<VaultData | null>(isDemo ? DEMO_VAULT as unknown as VaultData : null);
+  const [loading, setLoading] = useState(!isDemo);
+  const [solBal, setSolBal] = useState(isDemo ? 4.237 : 0);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [editInterval, setEditInterval] = useState(false);
   const [editBens, setEditBens] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  // Simulation
   const [simulating, setSimulating] = useState(false);
   const [simMsg, setSimMsg] = useState("");
+  const [, setTick] = useState(0);
+
+  // Live timer — update every second
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1_000);
+    return () => clearInterval(id);
+  }, []);
 
   const loadVault = useCallback(async () => {
+    if (isDemo) return;
     if (!publicKey || !wallet) return;
     const provider = new AnchorProvider(connection, wallet, {});
     const program = getProgram(provider);
@@ -172,11 +467,21 @@ export default function DashboardPage() {
     const bal = await connection.getBalance(publicKey);
     setSolBal(bal / LAMPORTS_PER_SOL);
     setLoading(false);
-  }, [publicKey, wallet, connection, router]);
+  }, [publicKey, wallet, connection, router, isDemo]);
 
   useEffect(() => { loadVault(); }, [loadVault]);
 
-  // ── Edit helpers ──────────────────────────────────────────────────────
+  async function handleCheckin() {
+    if (isDemo || !publicKey || !wallet) return;
+    setCheckingIn(true);
+    try {
+      const provider = new AnchorProvider(connection, wallet, {});
+      const program = getProgram(provider);
+      await checkin(program, publicKey);
+      await loadVault();
+    } finally { setCheckingIn(false); }
+  }
+
   async function saveInterval(days: number, grace: number) {
     if (!publicKey || !wallet || !vault) return;
     setSaving(true);
@@ -206,37 +511,29 @@ export default function DashboardPage() {
     finally { setSaving(false); }
   }
 
-  async function handleCheckin() {
-    if (!publicKey || !wallet) return;
-    const provider = new AnchorProvider(connection, wallet, {});
-    const program = getProgram(provider);
-    await checkin(program, publicKey);
-    await loadVault();
-  }
-
-  async function handleSimulateDeath() {
+  async function handleSimulate() {
     if (!publicKey || !wallet) return;
     setSimulating(true); setSimMsg("");
     try {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
-      setSimMsg("Backdateando timer...");
+      setSimMsg("Backdating timer...");
       await forceExpire(program, publicKey);
       setSimMsg("Ejecutando distribución...");
       await executeDistribution(program, publicKey, publicKey);
-      setSimMsg("✓ Distribución ejecutada");
+      setSimMsg("Listo");
       await loadVault();
     } catch (e) { setSimMsg("Error: " + (e instanceof Error ? e.message : String(e))); }
     finally { setSimulating(false); }
   }
 
-  // ── States ───────────────────────────────────────────────────────────
-  if (!publicKey) {
+  if (!publicKey && !isDemo) {
     return (
-      <div style={{ minHeight: "100vh", background: G.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: "#030303", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SF }}>
         <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
-        <div style={{ textAlign: "center" }}>
-          <p style={{ color: G.textMuted, marginBottom: 16, fontSize: 15 }}>Conectá tu wallet para ver tu dashboard</p>
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+          <img src="/logo.png" alt="Vigil" style={{ width: 40, height: 40, opacity: 0.5 }} />
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.35)" }}>Conectá tu wallet para acceder</p>
           <WalletMultiButton />
         </div>
       </div>
@@ -245,10 +542,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: G.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "100vh", background: "#030303", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SF }}>
         <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
-        <div style={{ width: 24, height: 24, border: "2px solid rgba(255,255,255,0.08)", borderTopColor: "rgba(255,255,255,0.6)", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", letterSpacing: "0.06em" }}>Cargando...</p>
       </div>
     );
   }
@@ -257,214 +553,101 @@ export default function DashboardPage() {
 
   const lastCheckin = vault.lastCheckin.toNumber();
   const timer = timeRemaining(lastCheckin, vault.intervalDays, vault.gracePeriodDays);
-  const isActive = vault.isActive;
-  const claimUrl = typeof window !== "undefined" ? `${window.location.origin}/claim/${publicKey.toBase58()}` : "";
-
-  const initialBenRows = vault.beneficiaries.map(b => ({
-    wallet: b.wallet.toBase58(),
-    share: b.shareBps / 100,
-  }));
+  const ownerAddr = isDemo ? "Demo1111111111111111111111111111111111111111" : publicKey?.toBase58() ?? "";
+  const claimUrl = typeof window !== "undefined" ? `${window.location.origin}/claim/${ownerAddr}` : "";
+  const initialBenRows = vault.beneficiaries.map(b => ({ wallet: b.wallet.toBase58(), share: b.shareBps / 100 }));
 
   return (
-    <div style={{ minHeight: "100vh", background: G.bg, color: G.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif", padding: "0 20px 60px", position: "relative", overflow: "hidden" }}>
-
-      {/* Noise */}
+    <div style={{
+      minHeight: "100vh", background: "#030303", color: "white",
+      fontFamily: SF,
+      display: "flex", flexDirection: "column",
+      position: "relative", overflow: "hidden",
+    }}>
       <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
 
       {/* Ambient blobs */}
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
-        <div style={{ position: "absolute", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.02) 0%, transparent 65%)", top: "-15%", left: "-10%", animation: "blob1 18s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.015) 0%, transparent 65%)", bottom: "0", right: "0", animation: "blob2 22s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.015) 0%, transparent 65%)", top: "-15%", left: "-10%", animation: "blob1 20s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(220,38,38,0.04) 0%, transparent 65%)", bottom: "5%", right: "-5%", animation: "blob2 25s ease-in-out infinite" }} />
       </div>
-      <style>{`@keyframes blob1{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-20px)}}@keyframes blob2{0%,100%{transform:translate(0,0)}50%{transform:translate(-20px,15px)}}`}</style>
+      <style>{`@keyframes blob1{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,-30px)}}@keyframes blob2{0%,100%{transform:translate(0,0)}50%{transform:translate(-30px,20px)}}`}</style>
 
-      {/* Navbar */}
-      <div style={{ position: "relative", zIndex: 10, maxWidth: 720, margin: "0 auto", paddingTop: 24, paddingBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <a href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-            <img src="/logo.png" alt="Vigil" style={{ width: 24, height: 24, objectFit: "contain" }} />
-            <span style={{ fontSize: 16, fontWeight: 700, color: G.text, letterSpacing: "-0.02em" }}>Vigil</span>
-          </a>
-        </div>
-        <WalletMultiButton style={{ fontSize: 13 }} />
-      </div>
-
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
-
-        {/* Status banner */}
-        <div style={{ background: isActive ? G.glass : "rgba(239,68,68,0.06)", border: `1px solid ${isActive ? G.glassBorder : "rgba(239,68,68,0.2)"}`, borderRadius: 20, padding: "20px 24px", backdropFilter: "blur(50px) saturate(200%)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: isActive ? G.emerald : G.danger, boxShadow: `0 0 8px ${isActive ? G.emerald : G.danger}` }} />
-              <span style={{ fontSize: 15, fontWeight: 700, color: isActive ? G.text : G.danger }}>
-                {isActive ? "Vault activo" : "Vault inactivo — distribución ejecutada"}
-              </span>
-            </div>
-            <p style={{ fontSize: 12, color: G.textDim, margin: 0 }}>
-              {isActive ? `Wallet: ${publicKey.toBase58().slice(0, 8)}...${publicKey.toBase58().slice(-6)}` : "Los activos fueron enviados a tus beneficiarios."}
-            </p>
-          </div>
-          {!isActive && (
-            <button
-              onClick={async () => {
-                if (!publicKey || !wallet) return;
-                const provider = new AnchorProvider(connection, wallet, {});
-                const program = getProgram(provider);
-                await cancelVault(program, publicKey);
-                router.push("/setup");
-              }}
-              style={{ padding: "8px 16px", borderRadius: 10, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", color: G.danger, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-              Configurar nuevo
-            </button>
+      {/* Top bar */}
+      <div style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 30,
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "18px 24px",
+        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        background: "rgba(3,3,3,0.7)",
+        backdropFilter: "blur(40px) saturate(180%)",
+        WebkitBackdropFilter: "blur(40px) saturate(180%)",
+      }}>
+        <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
+          <img src="/logo.png" alt="Vigil" style={{ width: 20, height: 20, objectFit: "contain", opacity: 0.6 }} />
+          <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.4)", letterSpacing: "0.04em" }}>Vigil</span>
+        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {!isDemo && (
+            <span style={{ fontSize: 11, fontFamily: MONO, color: "rgba(255,255,255,0.25)" }}>
+              {ownerAddr.slice(0, 6)}...{ownerAddr.slice(-4)}
+            </span>
           )}
+          <button
+            onClick={() => setInfoOpen(true)}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.55)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "6px 14px", fontFamily: SF, transition: "all 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.55)"; }}
+          >Info</button>
+          {!isDemo && <WalletMultiButton style={{ fontSize: 12, borderRadius: 20, height: 34 }} />}
         </div>
+      </div>
 
-        {isActive && (
-          <>
-            {/* Timer + check-in */}
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(50px) saturate(200%)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-                <div>
-                  <div style={{ fontSize: 12, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Tiempo hasta vencimiento</div>
-                  {timer.expired ? (
-                    <div style={{ fontSize: 22, fontWeight: 800, color: G.danger }}>¡Vencido!</div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span style={{ fontSize: 36, fontWeight: 800, letterSpacing: "-0.02em" }}>{timer.days}</span>
-                      <span style={{ fontSize: 14, color: G.textMuted }}>días</span>
-                      <span style={{ fontSize: 24, fontWeight: 700, marginLeft: 4 }}>{String(timer.hours).padStart(2, "0")}</span>
-                      <span style={{ fontSize: 14, color: G.textMuted }}>hs</span>
-                    </div>
-                  )}
-                  <div style={{ fontSize: 12, color: G.textDim, marginTop: 4 }}>
-                    Último check-in: {new Date(lastCheckin * 1000).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
-                  </div>
-                </div>
+      {/* Main content */}
+      <div style={{
+        position: "relative", zIndex: 1,
+        flex: 1, display: "flex", flexDirection: "column",
+        justifyContent: "center", alignItems: "center",
+        padding: "100px 24px 120px",
+        maxWidth: 520, margin: "0 auto", width: "100%",
+        gap: 16,
+      }}>
+        {/* Timer card */}
+        <VaultTimer
+          days={timer.days} hours={timer.hours} mins={timer.mins} secs={timer.secs}
+          pct={timer.pct} expired={timer.expired}
+        />
 
-                {/* Circular progress */}
-                <div style={{ position: "relative", width: 64, height: 64, flexShrink: 0 }}>
-                  <svg width="64" height="64" viewBox="0 0 64 64" style={{ transform: "rotate(-90deg)" }}>
-                    <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
-                    <circle cx="32" cy="32" r="26" fill="none" stroke={timer.pct > 30 ? G.emerald : G.danger} strokeWidth="5"
-                      strokeDasharray={`${2 * Math.PI * 26}`}
-                      strokeDashoffset={`${2 * Math.PI * 26 * (1 - timer.pct / 100)}`}
-                      strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease" }} />
-                  </svg>
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>{timer.pct}%</div>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 99, marginBottom: 20 }}>
-                <div style={{ height: "100%", width: `${timer.pct}%`, background: timer.pct > 30 ? G.emerald : G.danger, borderRadius: 99, transition: "width 1s ease" }} />
-              </div>
-
-              <button
-                onClick={handleCheckin}
-                style={{ width: "100%", padding: "14px", borderRadius: 14, background: G.emerald, color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#059669")}
-                onMouseLeave={e => (e.currentTarget.style.background = G.emerald)}
-              >
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(255,255,255,0.5)", boxShadow: "0 0 6px white" }} />
-                Estoy vivo — hacer check-in
-              </button>
+        {/* Hold button */}
+        {vault.isActive ? (
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
+            <HoldToConfirm onConfirm={handleCheckin} loading={checkingIn} />
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
+              Último check-in: {new Date(lastCheckin * 1000).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
             </div>
-
-            {/* Beneficiaries */}
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(50px) saturate(200%)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>Beneficiarios</div>
-                <button onClick={() => setEditBens(true)}
-                  style={{ background: "none", border: `1px solid ${G.glassBorder}`, borderRadius: 8, padding: "5px 12px", color: G.textMuted, fontSize: 12, cursor: "pointer", transition: "all 0.2s" }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = G.emeraldBorder)}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
-                >Editar</button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {vault.beneficiaries.map((b, i) => {
-                  const pct = b.shareBps / 100;
-                  const solAmount = (solBal * b.shareBps / 10_000).toFixed(4);
-                  return (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: G.emerald, flexShrink: 0 }}>{i + 1}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                          <span style={{ fontSize: 12, color: G.textMuted, fontFamily: "monospace" }}>
-                            {b.wallet.toBase58().slice(0, 8)}...{b.wallet.toBase58().slice(-6)}
-                          </span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: G.emerald }}>{pct}% · ~{solAmount} SOL</span>
-                        </div>
-                        <div style={{ height: 3, background: "rgba(255,255,255,0.05)", borderRadius: 99 }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: G.emerald, borderRadius: 99, opacity: 0.7 }} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Settings */}
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "24px", backdropFilter: "blur(50px) saturate(200%)" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Configuración</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                {[
-                  { label: "Frecuencia de check-in", val: `Cada ${vault.intervalDays} días` },
-                  { label: "Período de gracia", val: vault.gracePeriodDays === 0 ? "Sin gracia" : `+${vault.gracePeriodDays} días` },
-                ].map(({ label, val }) => (
-                  <div key={label} style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${G.glassBorder}`, borderRadius: 14, padding: "14px 16px" }}>
-                    <div style={{ fontSize: 11, color: G.textDim, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>{label}</div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{val}</div>
-                  </div>
-                ))}
-              </div>
-              <button onClick={() => setEditInterval(true)}
-                style={{ marginTop: 14, width: "100%", padding: "10px", borderRadius: 12, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 13, cursor: "pointer", transition: "all 0.2s" }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = G.emeraldBorder; e.currentTarget.style.color = G.emerald; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = G.glassBorder; e.currentTarget.style.color = G.textMuted; }}
-              >Modificar frecuencia de check-in</button>
-            </div>
-
-            {/* Claim link */}
-            <div style={{ background: G.glass, border: `1px solid ${G.glassBorder}`, borderRadius: 20, padding: "20px 24px", backdropFilter: "blur(50px) saturate(200%)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <div>
-                <div style={{ fontSize: 12, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>Link para beneficiarios</div>
-                <div style={{ fontSize: 12, color: G.textMuted, fontFamily: "monospace" }}>{claimUrl.slice(0, 50)}...</div>
-              </div>
-              <button onClick={() => navigator.clipboard.writeText(claimUrl)}
-                style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${G.glassBorder}`, background: "transparent", color: G.textMuted, fontSize: 12, cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = G.emeraldBorder; e.currentTarget.style.color = G.emerald; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = G.glassBorder; e.currentTarget.style.color = G.textMuted; }}
-              >Copiar link</button>
-            </div>
-
-            {/* Demo: simulate death */}
-            <div style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.15)", borderRadius: 20, padding: "20px 24px" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: G.danger, marginBottom: 4 }}>Simular muerte (demo)</div>
-              <p style={{ fontSize: 12, color: G.textDim, marginBottom: 14, lineHeight: 1.5 }}>Expira el timer forzosamente y ejecuta la distribución en devnet.</p>
-              <button onClick={handleSimulateDeath} disabled={simulating}
-                style={{ padding: "10px 20px", borderRadius: 10, border: "1px solid rgba(239,68,68,0.3)", background: simulating ? "rgba(239,68,68,0.1)" : "transparent", color: G.danger, fontSize: 13, fontWeight: 600, cursor: simulating ? "default" : "pointer", transition: "all 0.2s" }}
-                onMouseEnter={e => !simulating && (e.currentTarget.style.background = "rgba(239,68,68,0.1)")}
-                onMouseLeave={e => !simulating && (e.currentTarget.style.background = "transparent")}
-              >{simulating ? "Simulando..." : "☠ Simular que morí"}</button>
-              {simMsg && <p style={{ fontSize: 12, color: simMsg.startsWith("Error") ? G.danger : G.emerald, marginTop: 10 }}>{simMsg}</p>}
-            </div>
-          </>
+          </div>
+        ) : (
+          <div className="liquid-glass" style={{ width: "100%", borderRadius: 20, padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#ef4444", marginBottom: 10 }}>Distribución ejecutada</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", lineHeight: 1.7 }}>Los activos fueron enviados a los beneficiarios.</div>
+          </div>
         )}
       </div>
 
-      {/* Modals */}
+      <InfoPanel
+        open={infoOpen} onClose={() => setInfoOpen(false)}
+        vault={vault} solBal={solBal} publicKey={ownerAddr} isDemo={isDemo}
+        onEditInterval={() => { setInfoOpen(false); setTimeout(() => setEditInterval(true), 350); }}
+        onEditBens={() => { setInfoOpen(false); setTimeout(() => setEditBens(true), 350); }}
+        onSimulate={handleSimulate} simulating={simulating} simMsg={simMsg}
+        claimUrl={claimUrl}
+      />
+
       {editInterval && vault && (
-        <EditIntervalModal
-          current={vault.intervalDays} grace={vault.gracePeriodDays}
-          onSave={saveInterval} onClose={() => setEditInterval(false)} loading={saving}
-        />
+        <EditIntervalModal current={vault.intervalDays} grace={vault.gracePeriodDays} onSave={saveInterval} onClose={() => setEditInterval(false)} loading={saving} />
       )}
       {editBens && vault && (
-        <EditBeneficiariesModal
-          initialRows={initialBenRows}
-          onSave={saveBeneficiaries} onClose={() => setEditBens(false)} loading={saving}
-        />
+        <EditBeneficiariesModal initialRows={initialBenRows} onSave={saveBeneficiaries} onClose={() => setEditBens(false)} loading={saving} />
       )}
     </div>
   );

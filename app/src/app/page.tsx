@@ -242,7 +242,7 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 liquid-glass mb-0"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 liquid-glass mb-6"
           >
             <div className="flex items-center justify-center w-5 h-5 rounded-full bg-black">
               <svg width="12" height="12" viewBox="0 0 397 311" fill="none">

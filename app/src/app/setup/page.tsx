@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 import { useState, useEffect, useCallback } from "react";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
@@ -6,7 +7,7 @@ import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getProgram, registerVault, fetchVaultConfig, BeneficiaryInput } from "@/lib/vigil";
 import { getUserTokenAccounts, wrapAndApproveSOL, approveDelegateForToken } from "@/lib/delegate";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // ─── Style tokens ──────────────────────────────────────────────────────────
 const G = {
@@ -14,9 +15,9 @@ const G = {
   glass: "rgba(200,200,200,0.04)",
   glassBorder: "rgba(255,255,255,0.08)",
   glassBorderHover: "rgba(255,255,255,0.2)",
-  emerald: "#10b981",
-  emeraldDim: "rgba(16,185,129,0.1)",
-  emeraldBorder: "rgba(16,185,129,0.2)",
+  emerald: "rgba(255,255,255,0.9)",
+  emeraldDim: "rgba(255,255,255,0.06)",
+  emeraldBorder: "rgba(255,255,255,0.12)",
   text: "#ffffff",
   textMuted: "#a1a1aa",
   textDim: "#52525b",
@@ -60,24 +61,26 @@ function Tooltip({ text }: { text: string }) {
 // ─── Progress dots ─────────────────────────────────────────────────────────
 const STEP_LABELS = ["Wallet", "Beneficiarios", "Check-in", "Autorizar", "Revisar"];
 
-function ProgressDots({ current, total }: { current: number; total: number }) {
+function ProgressDots({ current, total, onJump }: { current: number; total: number; onJump?: (i: number) => void }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 36 }}>
       {Array.from({ length: total }).map((_, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center" }}>
-          <div style={{
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-          }}>
-            <div style={{
-              width: i === current ? 32 : 28, height: i === current ? 32 : 28,
-              borderRadius: "50%",
-              background: i < current ? G.emerald : i === current ? G.emeraldDim : "rgba(255,255,255,0.04)",
-              border: `2px solid ${i <= current ? G.emerald : G.glassBorder}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.3s ease",
-              fontSize: 11, fontWeight: 700,
-              color: i < current ? "white" : i === current ? G.emerald : G.textDim,
-            }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <div
+              onClick={() => onJump?.(i)}
+              style={{
+                width: i === current ? 32 : 28, height: i === current ? 32 : 28,
+                borderRadius: "50%",
+                background: i < current ? G.emerald : i === current ? G.emeraldDim : "rgba(255,255,255,0.04)",
+                border: `2px solid ${i <= current ? G.emerald : G.glassBorder}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.3s ease",
+                fontSize: 11, fontWeight: 700,
+                color: i < current ? "white" : i === current ? G.emerald : G.textDim,
+                cursor: onJump ? "pointer" : "default",
+              }}
+            >
               {i < current ? (
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M2 6.5L4.5 9L10 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -135,12 +138,18 @@ const monoInputStyle: React.CSSProperties = {
 
 // ─── Main ─────────────────────────────────────────────────────────────────
 export default function SetupPage() {
+  return <Suspense><SetupContent /></Suspense>;
+}
+
+function SetupContent() {
   const { publicKey, signTransaction } = useWallet();
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isDemo = searchParams.get("demo") === "1";
 
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(isDemo ? 1 : 0);
   const [visible, setVisible] = useState(true);
 
   // Form state
@@ -156,6 +165,7 @@ export default function SetupPage() {
 
   // Auto-advance from step 0 when wallet connects, or redirect if vault exists
   useEffect(() => {
+    if (isDemo) return;
     if (!publicKey || !wallet) return;
     if (step !== 0) return;
     const provider = new AnchorProvider(connection, wallet, {});
@@ -298,7 +308,7 @@ export default function SetupPage() {
           <StepCard visible={visible}>
             <div className="liquid-glass" style={{ borderRadius: 28, padding: "40px 36px" }}>
 
-              <ProgressDots current={step - 1} total={4} />
+              <ProgressDots current={step - 1} total={4} onJump={isDemo ? (i) => transition(i + 1) : undefined} />
 
               {/* ── Step 1: Beneficiaries ── */}
               {step === 1 && (
@@ -380,9 +390,9 @@ export default function SetupPage() {
                       onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
                     >← Atrás</button>
                     <button onClick={() => { const v = validateBeneficiaries(); if (v) transition(2); }}
-                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: G.emerald, color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#059669")}
-                      onMouseLeave={e => (e.currentTarget.style.background = G.emerald)}
+                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,1)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "white")}
                     >Continuar →</button>
                   </div>
                 </div>
@@ -397,7 +407,7 @@ export default function SetupPage() {
                   </div>
 
                   <Hint icon="⏱">
-                    Este es tu <strong style={{ color: "#d1fae5" }}>dead man's switch</strong>. Cada período debés confirmar que seguís vivo con un clic. Si no lo hacés, tus beneficiarios reciben todo.
+                    Este es tu <strong style={{ color: "white" }}>dead man's switch</strong>. Cada período debés confirmar que seguís vivo con un clic. Si no lo hacés, tus beneficiarios reciben todo.
                   </Hint>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 24 }}>
@@ -413,7 +423,7 @@ export default function SetupPage() {
                           color: intervalDays === opt.days ? G.text : G.textMuted,
                           cursor: "pointer", transition: "all 0.2s", position: "relative", textAlign: "center",
                         }}>
-                        {opt.rec && <div style={{ position: "absolute", top: -8, right: -8, background: G.emerald, color: "white", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 99 }}>REC</div>}
+                        {opt.rec && <div style={{ position: "absolute", top: -8, right: -8, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)", color: "white", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 99 }}>REC</div>}
                         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{opt.label}</div>
                         <div style={{ fontSize: 11, opacity: 0.7 }}>{opt.sub}</div>
                       </button>
@@ -447,9 +457,9 @@ export default function SetupPage() {
                       onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
                     >← Atrás</button>
                     <button onClick={() => transition(3)}
-                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: G.emerald, color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#059669")}
-                      onMouseLeave={e => (e.currentTarget.style.background = G.emerald)}
+                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,1)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "white")}
                     >Continuar →</button>
                   </div>
                 </div>
@@ -464,7 +474,7 @@ export default function SetupPage() {
                   </div>
 
                   <Hint icon="🔐">
-                    Esto <strong style={{ color: "#d1fae5" }}>no deposita</strong> nada. Es una aprobación SPL delegate: Vigil puede distribuir tus activos únicamente cuando el plazo expire. Podés revocar en cualquier momento.
+                    Esto <strong style={{ color: "white" }}>no deposita</strong> nada. Es una aprobación SPL delegate: Vigil puede distribuir tus activos únicamente cuando el plazo expire. Podés revocar en cualquier momento.
                   </Hint>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
@@ -493,7 +503,7 @@ export default function SetupPage() {
                           <button
                             onClick={() => !isApproved && handleApprove(token)}
                             disabled={isApproved || !!isApproving}
-                            style={{ padding: "8px 18px", borderRadius: 10, border: "none", cursor: isApproved ? "default" : "pointer", background: isApproved ? "rgba(16,185,129,0.15)" : G.emerald, color: isApproved ? G.emerald : "white", fontSize: 13, fontWeight: 600, transition: "all 0.2s", opacity: isApproving ? 0.6 : 1 }}
+                            style={{ padding: "8px 18px", borderRadius: 10, border: "none", cursor: isApproved ? "default" : "pointer", background: isApproved ? "rgba(255,255,255,0.08)" : "white", color: isApproved ? G.textMuted : "black", fontSize: 13, fontWeight: 600, transition: "all 0.2s", opacity: isApproving ? 0.6 : 1 }}
                           >
                             {isApproving ? "Firmando..." : isApproved ? "✓ Listo" : "Autorizar"}
                           </button>
@@ -510,9 +520,9 @@ export default function SetupPage() {
                       onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
                     >← Atrás</button>
                     <button onClick={() => transition(4)}
-                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: approved.size > 0 ? G.emerald : "rgba(255,255,255,0.06)", color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => approved.size > 0 && (e.currentTarget.style.background = "#059669")}
-                      onMouseLeave={e => approved.size > 0 && (e.currentTarget.style.background = G.emerald)}
+                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: approved.size > 0 ? "white" : "rgba(255,255,255,0.06)", color: approved.size > 0 ? "black" : "white", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
+                      onMouseEnter={e => approved.size > 0 && (e.currentTarget.style.background = "rgba(230,230,230,1)")}
+                      onMouseLeave={e => approved.size > 0 && (e.currentTarget.style.background = "white")}
                     >
                       {approved.size > 0 ? "Continuar →" : "Saltar por ahora →"}
                     </button>
@@ -578,9 +588,9 @@ export default function SetupPage() {
                       onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
                     >← Atrás</button>
                     <button onClick={handleDeploy} disabled={deploying}
-                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: deploying ? "rgba(16,185,129,0.5)" : G.emerald, color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: deploying ? "default" : "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                      onMouseEnter={e => !deploying && (e.currentTarget.style.background = "#059669")}
-                      onMouseLeave={e => !deploying && (e.currentTarget.style.background = G.emerald)}
+                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: deploying ? "rgba(255,255,255,0.5)" : "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: deploying ? "default" : "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                      onMouseEnter={e => !deploying && (e.currentTarget.style.background = "rgba(230,230,230,1)")}
+                      onMouseLeave={e => !deploying && (e.currentTarget.style.background = "white")}
                     >
                       {deploying && <div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
                       {deploying ? "Desplegando..." : "🚀 Lanzar mi Vigil"}

@@ -1,5 +1,6 @@
 "use client";
-import { use, useEffect, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
@@ -21,26 +22,45 @@ const G = {
   text: "#ffffff",
   textMuted: "#a1a1aa",
   textDim: "#52525b",
-  emerald: "#10b981",
-  emeraldDim: "rgba(16,185,129,0.1)",
-  emeraldBorder: "rgba(16,185,129,0.2)",
+  emerald: "rgba(255,255,255,0.9)",
+  emeraldDim: "rgba(255,255,255,0.06)",
+  emeraldBorder: "rgba(255,255,255,0.12)",
   danger: "#ef4444",
 };
 
+const DEMO_VAULT: VaultData = {
+  owner: { toBase58: () => "Demo1111111111111111111111111111111111111111" },
+  beneficiaries: [
+    { wallet: { toBase58: () => "Bene1abc123def456ghi789jkl012mno345pqr678stu" }, shareBps: 5000 },
+    { wallet: { toBase58: () => "Bene2xyz987wvu654tsr321qpo098nml765kji432hg" }, shareBps: 3000 },
+    { wallet: { toBase58: () => "Bene3zzz111aaa222bbb333ccc444ddd555eee666ff" }, shareBps: 2000 },
+  ],
+  isActive: false,
+  intervalDays: 60,
+  lastCheckin: { toNumber: () => Math.floor(Date.now() / 1000) - 70 * 86400 },
+};
+
 export default function ClaimPage({ params }: { params: Promise<{ owner: string }> }) {
+  return <Suspense><ClaimContent params={params} /></Suspense>;
+}
+
+function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
   const { owner: ownerParam } = use(params);
+  const searchParams = useSearchParams();
+  const isDemo = searchParams.get("demo") === "1" || ownerParam === "DEMO";
   const { publicKey, signTransaction } = useWallet();
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
-  const [vault, setVault] = useState<VaultData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [vault, setVault] = useState<VaultData | null>(isDemo ? DEMO_VAULT : null);
+  const [loading, setLoading] = useState(!isDemo);
   const [error, setError] = useState("");
-  const [solBalance, setSolBalance] = useState<number>(0);
-  const [wsolBalance, setWsolBalance] = useState<bigint>(0n);
+  const [solBalance, setSolBalance] = useState<number>(isDemo ? 4.237 : 0);
+  const [wsolBalance, setWsolBalance] = useState<bigint>(isDemo ? BigInt(2_100_000_000) : 0n);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
 
   useEffect(() => {
+    if (isDemo) return;
     async function load() {
       try {
         const ownerPk = new PublicKey(ownerParam);
@@ -146,7 +166,7 @@ export default function ClaimPage({ params }: { params: Promise<{ owner: string 
                   const isMe = publicKey && b.wallet.toBase58() === publicKey.toBase58();
                   return (
                     <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 12, background: isMe ? G.emeraldDim : "rgba(255,255,255,0.02)", border: `1px solid ${isMe ? G.emeraldBorder : G.glassBorder}` }}>
-                      <span style={{ fontSize: 12, fontFamily: "monospace", color: isMe ? "#86efac" : G.textMuted }}>
+                      <span style={{ fontSize: 12, fontFamily: "monospace", color: isMe ? "white" : G.textMuted }}>
                         {b.wallet.toBase58().slice(0, 8)}...{b.wallet.toBase58().slice(-4)}
                         {isMe && <span style={{ marginLeft: 8, fontSize: 11, color: G.emerald }}> ← vos</span>}
                       </span>
@@ -169,7 +189,7 @@ export default function ClaimPage({ params }: { params: Promise<{ owner: string 
             ) : myShare ? (
               <>
                 <div style={{ background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, borderRadius: 16, padding: "16px 20px", textAlign: "center" }}>
-                  <p style={{ color: "#86efac", fontWeight: 600, fontSize: 14 }}>Sos beneficiario</p>
+                  <p style={{ color: "white", fontWeight: 600, fontSize: 14 }}>Sos beneficiario</p>
                   <p style={{ fontSize: 13, color: G.textMuted, marginTop: 4 }}>
                     Te corresponde el {myShare.shareBps / 100}% ≈ {((solBalance * myShare.shareBps) / 10_000).toFixed(4)} SOL
                   </p>
@@ -184,7 +204,7 @@ export default function ClaimPage({ params }: { params: Promise<{ owner: string 
                     <button
                       onClick={claimWsol}
                       disabled={claiming}
-                      style={{ width: "100%", padding: "13px", borderRadius: 14, background: claiming ? "rgba(16,185,129,0.5)" : G.emerald, color: "white", fontSize: 14, fontWeight: 700, border: "none", cursor: claiming ? "default" : "pointer", transition: "all 0.2s", opacity: claiming ? 0.7 : 1 }}
+                      style={{ width: "100%", padding: "13px", borderRadius: 14, background: claiming ? "rgba(255,255,255,0.4)" : "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: claiming ? "default" : "pointer", transition: "all 0.2s", opacity: claiming ? 0.7 : 1 }}
                     >
                       {claiming ? "Procesando..." : "Reclamar SOL"}
                     </button>
@@ -193,7 +213,7 @@ export default function ClaimPage({ params }: { params: Promise<{ owner: string 
                 )}
 
                 {(claimed || (isExpired && !hasWsol && myShare)) && (
-                  <div style={{ background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, borderRadius: 16, padding: "16px", textAlign: "center", fontSize: 14, color: "#86efac" }}>
+                  <div style={{ background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, borderRadius: 16, padding: "16px", textAlign: "center", fontSize: 14, color: "white" }}>
                     {claimed ? "✓ SOL reclamado exitosamente" : "Los activos fueron distribuidos a tu wallet."}
                   </div>
                 )}
