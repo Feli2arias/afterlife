@@ -113,11 +113,7 @@ function SetupContent() {
   // Hint visibility
   const [hints, setHints] = useState({ step1: true, step2: true, step3: true });
 
-  // Advance to step 1 once wallet connects
-  useEffect(() => {
-    if (isDemo || phase !== 0 || !publicKey) return;
-    setPhase(1);
-  }, [publicKey]); // eslint-disable-line
+  // no auto-advance — user clicks Continue explicitly
 
   useEffect(() => {
     if (phase === 4 && publicKey) {
@@ -256,6 +252,24 @@ function SetupContent() {
           <WalletMultiButton style={{ width: "100%", justifyContent: "center", borderRadius: 14, padding: "14px 24px", fontSize: 15, fontWeight: 600 }} />
 
           <p className="text-white/20 text-xs mt-4">Phantom, Solflare &amp; other Solana wallets · Devnet</p>
+
+          {publicKey && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 flex flex-col items-center gap-3"
+            >
+              <p className="text-xs text-white/30 font-mono" style={{ fontFamily: MONO }}>
+                ✓ Connected: {publicKey.toBase58().slice(0, 8)}...{publicKey.toBase58().slice(-4)}
+              </p>
+              <button
+                onClick={() => setPhase(1)}
+                className="flex items-center gap-2 bg-white text-black text-sm font-bold px-6 py-3 rounded-full hover:bg-white/90 transition-all"
+              >
+                Continue <ArrowRight className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
 
           <div className="mt-12 pt-8 border-t border-white/5 grid grid-cols-3 gap-4">
             {[
