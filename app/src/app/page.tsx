@@ -26,8 +26,8 @@ function useSmartCta() {
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
-const VigilLogo = ({ className = "w-6 h-6" }: { className?: string }) => (
-  <img src="/logo.png" alt="Vigil Logo" className={`${className} object-contain`} />
+const AfterlifeLogo = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <img src="/logo.png" alt="Afterlife Logo" className={`${className} object-contain`} />
 );
 
 const MagneticButton = ({ children, className = "", onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) => {
@@ -120,8 +120,8 @@ const Navbar = ({ onLaunch }: { onLaunch: () => void }) => {
         isScrolled ? "py-3 px-6 liquid-glass border border-white/10 shadow-2xl" : "py-4 px-2 bg-transparent mix-blend-difference"
       }`}>
         <div className="flex items-center gap-2 text-white font-semibold tracking-tight text-xl">
-          <VigilLogo className="w-8 h-8" />
-          Vigil
+          <AfterlifeLogo className="w-8 h-8" />
+          Afterlife
         </div>
         <div className={`hidden md:flex items-center gap-8 text-[13px] font-medium tracking-wide transition-colors duration-500 ${isScrolled ? "text-[#a1a1a1]" : "text-[#b5b5b5]"}`}>
           <a href="#mechanics" className="hover:text-white transition-colors">Protocol</a>
@@ -167,7 +167,7 @@ const FloatingVault = () => {
       >
         <div className="w-full h-full border border-white/10 rounded-[1.5rem] flex flex-col justify-between p-6">
           <div className="flex justify-between items-center">
-            <VigilLogo className="w-8 h-8 text-white/70" />
+            <AfterlifeLogo className="w-8 h-8 text-white/70" />
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-widest text-[#888] font-mono">Status: Active</span>
               <div className="h-2 w-2 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] animate-pulse" />
@@ -224,7 +224,7 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 1.8, ease: "easeOut" }}
           src="/hero-image.png"
-          alt="Vigil Hero"
+          alt="Afterlife Hero"
           className="w-full h-full object-cover object-[80%_center] grayscale-[0.2] brightness-[0.7] contrast-[1.1]"
           onError={(e) => {
             (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&q=80&w=2000";
@@ -269,7 +269,7 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
               transition={{ duration: 1.2, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="text-lg md:text-xl text-[#d0d0d0] font-medium tracking-tight max-w-xl drop-shadow-md"
             >
-              Vigil is a non-custodial protocol on Solana that ensures your digital legacy reaches the people you choose, strictly governed by on-chain logic.
+              What you leave behind shouldn't be left to chance. Afterlife is a non-custodial protocol on Solana that ensures your digital legacy reaches the people you choose.
             </motion.p>
           </div>
 
@@ -377,7 +377,7 @@ const ArchitectureSection = ({ onLaunch }: { onLaunch: () => void }) => (
             <div className="text-xs font-mono text-[#888]">Beneficiary Claim</div>
             <div className="font-mono text-sm text-white/70">{"unwrap(wSOL) → native SOL"}</div>
             <div className="h-px w-full bg-white/10 my-2" />
-            <div className="font-mono text-xs text-[#555]">vigil-sol.vercel.app/claim</div>
+            <div className="font-mono text-xs text-[#555]">afterlife.vercel.app/claim</div>
           </div>
         </SpotlightCard>
       </div>
@@ -391,7 +391,7 @@ const FinalSection = ({ onLaunch }: { onLaunch: () => void }) => (
   <section className="py-32 px-6 relative z-20 overflow-hidden text-center mix-blend-screen">
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-white/5 blur-[150px] rounded-[100%] pointer-events-none" />
     <div className="max-w-4xl mx-auto relative z-10 flex flex-col items-center">
-      <VigilLogo className="w-20 h-20 mb-10 text-white" />
+      <AfterlifeLogo className="w-20 h-20 mb-10 text-white" />
       <h2 className="text-5xl md:text-7xl font-bold tracking-tighter mb-8 leading-[0.9] titanium-text">
         Designed for eternity.
       </h2>
@@ -414,7 +414,7 @@ const Footer = () => (
   <footer className="border-t border-white/5 py-12 px-6 relative z-20 bg-black/50 backdrop-blur-xl">
     <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
       <div className="text-white font-semibold tracking-tight flex items-center gap-2">
-        <VigilLogo className="w-6 h-6" />
+        <AfterlifeLogo className="w-6 h-6" />
         VIGIL
       </div>
       <div className="flex gap-8 text-[13px] text-[#666] font-medium tracking-wide uppercase">

@@ -70,7 +70,7 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
         const provider = new AnchorProvider(connection, wallet, {});
         const program = getProgram(provider);
         const data = await fetchVaultConfig(program, ownerPk);
-        if (!data) { setError("No Vigil vault found for this address."); return; }
+        if (!data) { setError("No Afterlife vault found for this address."); return; }
         setVault(data as VaultData);
       } catch {
         setError("Invalid address.");
@@ -130,9 +130,9 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 8 }}>
           <div style={{ width: 52, height: 52, margin: "0 auto 16px", borderRadius: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <img src="/logo.png" alt="Vigil" style={{ width: 30, height: 30, objectFit: "contain" }} />
+            <img src="/logo.png" alt="Afterlife" style={{ width: 30, height: 30, objectFit: "contain" }} />
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 6 }}>Vigil — Claim Assets</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 6 }}>Afterlife — Claim Assets</h1>
           <p style={{ fontSize: 12, color: G.textDim, fontFamily: "monospace" }}>
             {ownerParam.slice(0, 8)}...{ownerParam.slice(-6)}
           </p>
@@ -218,7 +218,7 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
               </>
             ) : (
               <p style={{ textAlign: "center", fontSize: 14, color: G.textDim }}>
-                Your wallet is not listed as a beneficiary of this Vigil.
+                Your wallet is not listed as a beneficiary of this Afterlife.
               </p>
             )}
           </>

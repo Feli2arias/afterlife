@@ -514,7 +514,7 @@ function DashboardContent() {
       <div style={{ minHeight: "100vh", background: "#060606", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SF }}>
         <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
         <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
-          <img src="/logo.png" alt="Vigil" style={{ width: 44, height: 44, opacity: 0.4 }} />
+          <img src="/logo.png" alt="Afterlife" style={{ width: 44, height: 44, opacity: 0.4 }} />
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>Connect your wallet to continue</p>
           <WalletMultiButton />
         </div>
@@ -549,8 +549,8 @@ function DashboardContent() {
       {/* Top bar */}
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 30, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 28px", background: "rgba(6,6,6,0.6)", backdropFilter: "blur(40px)", WebkitBackdropFilter: "blur(40px)" }}>
         <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/logo.png" alt="Vigil" style={{ width: 22, height: 22, objectFit: "contain", opacity: 0.5 }} />
-          <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.35)", letterSpacing: "0.02em" }}>Vigil</span>
+          <img src="/logo.png" alt="Afterlife" style={{ width: 22, height: 22, objectFit: "contain", opacity: 0.5 }} />
+          <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.35)", letterSpacing: "0.02em" }}>Afterlife</span>
         </a>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           {!isDemo && <span style={{ fontSize: 11, fontFamily: MONO, color: "rgba(255,255,255,0.2)" }}>{ownerAddr.slice(0, 6)}...{ownerAddr.slice(-4)}</span>}

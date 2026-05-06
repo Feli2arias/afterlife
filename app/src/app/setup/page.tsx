@@ -218,7 +218,7 @@ function SetupContent() {
           onMouseLeave={e => (e.currentTarget.style.color = G.textDim)}
         >
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-          Vigil
+          Afterlife
         </a>
       </div>
 
@@ -229,10 +229,10 @@ function SetupContent() {
           <StepCard visible={visible}>
             <div className="liquid-glass" style={{ borderRadius: 28, padding: "48px 40px", textAlign: "center" }}>
               <div style={{ width: 64, height: 64, borderRadius: 18, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
-                <img src="/logo.png" alt="Vigil" style={{ width: 36, height: 36, objectFit: "contain" }} />
+                <img src="/logo.png" alt="Afterlife" style={{ width: 36, height: 36, objectFit: "contain" }} />
               </div>
 
-              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12 }}>Welcome to Vigil</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12 }}>Welcome to Afterlife</h1>
               <p style={{ fontSize: 15, color: G.textMuted, lineHeight: 1.65, marginBottom: 36, maxWidth: 380, margin: "0 auto 36px" }}>
                 Your crypto legacy, secured on-chain. Set up in minutes who receives your assets if something happens.
               </p>
@@ -359,7 +359,7 @@ function SetupContent() {
                 <div>
                   <div style={{ marginBottom: 24 }}>
                     <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>How often will you check in?</h2>
-                    <p style={{ fontSize: 14, color: G.textMuted, lineHeight: 1.6 }}>If you don't check in before the deadline, Vigil will distribute your assets.</p>
+                    <p style={{ fontSize: 14, color: G.textMuted, lineHeight: 1.6 }}>If you don't check in before the deadline, Afterlife will distribute your assets.</p>
                   </div>
 
                   <Hint icon="⏱">
@@ -421,11 +421,11 @@ function SetupContent() {
                 <div>
                   <div style={{ marginBottom: 24 }}>
                     <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>Authorize your assets</h2>
-                    <p style={{ fontSize: 14, color: G.textMuted, lineHeight: 1.6 }}>Your funds <strong style={{ color: G.text }}>stay in your wallet</strong>. You only give Vigil permission to move them <em>if the timer expires</em>.</p>
+                    <p style={{ fontSize: 14, color: G.textMuted, lineHeight: 1.6 }}>Your funds <strong style={{ color: G.text }}>stay in your wallet</strong>. You only give Afterlife permission to move them <em>if the timer expires</em>.</p>
                   </div>
 
                   <Hint icon="🔐">
-                    This <strong style={{ color: "white" }}>doesn't deposit</strong> anything. It's an SPL delegate approval: Vigil can only distribute your assets when the deadline expires. You can revoke at any time.
+                    This <strong style={{ color: "white" }}>doesn't deposit</strong> anything. It's an SPL delegate approval: Afterlife can only distribute your assets when the deadline expires. You can revoke at any time.
                   </Hint>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
@@ -447,7 +447,7 @@ function SetupContent() {
                               {token.isNativeSol && (
                                 <span style={{ fontSize: 10, color: G.textDim, background: "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: 99 }}>converted to wSOL</span>
                               )}
-                              <Tooltip text={token.isNativeSol ? "Your SOL is wrapped as wSOL (1:1). It's reversible and required for Vigil to distribute it as an SPL token." : "Vigil will get permission to distribute this token if the timer expires. Your funds never move right now."} />
+                              <Tooltip text={token.isNativeSol ? "Your SOL is wrapped as wSOL (1:1). It's reversible and required for Afterlife to distribute it as an SPL token." : "Afterlife will get permission to distribute this token if the timer expires. Your funds never move right now."} />
                             </div>
                             <span style={{ fontSize: 12, color: G.textDim }}>{display}</span>
                           </div>
@@ -539,7 +539,7 @@ function SetupContent() {
                       onMouseLeave={e => !deploying && (e.currentTarget.style.background = "white")}
                     >
                       {deploying && <div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
-                      {deploying ? "Deploying..." : "🚀 Launch my Vigil"}
+                      {deploying ? "Deploying..." : "🚀 Launch my Afterlife"}
                     </button>
                   </div>
                   <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>

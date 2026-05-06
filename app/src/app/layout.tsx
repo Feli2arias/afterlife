@@ -7,8 +7,8 @@ import PreviewBar from "@/components/PreviewBar";
 const geist = Geist({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Vigil — Your crypto. Their future.",
-  description: "On-chain crypto inheritance without custody.",
+  title: "Afterlife — Your crypto lives on.",
+  description: "Non-custodial crypto inheritance on Solana.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
