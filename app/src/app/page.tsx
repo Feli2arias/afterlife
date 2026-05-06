@@ -1,28 +1,27 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { motion, useScroll, useTransform, useSpring, useMotionTemplate, useMotionValue, useMotionValueEvent } from "framer-motion";
 import { Fingerprint, Lock, ShieldCheck, ArrowRight, Clock, Activity, ChevronRight } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { useRouter } from "next/navigation";
 import { getProgram, fetchVaultConfig } from "@/lib/vigil";
-import { WalletModal } from "@/components/WalletModal";
 
 // ─── Smart CTA hook ───────────────────────────────────────────────────────────
-function useSmartCta(onNoWallet: () => void) {
+function useSmartCta() {
   const { publicKey } = useWallet();
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
   const router = useRouter();
 
   return useCallback(async () => {
-    if (!publicKey || !wallet) { onNoWallet(); return; }
+    if (!publicKey || !wallet) { router.push("/setup"); return; }
     const provider = new AnchorProvider(connection, wallet, {});
     const program = getProgram(provider);
     const existing = await fetchVaultConfig(program, publicKey);
     router.push(existing ? "/dashboard" : "/setup");
-  }, [publicKey, wallet, connection, router, onNoWallet]);
+  }, [publicKey, wallet, connection, router]);
 }
 
 // ─── Components ───────────────────────────────────────────────────────────────
@@ -133,7 +132,7 @@ const Navbar = ({ onLaunch }: { onLaunch: () => void }) => {
             onClick={onLaunch}
             className={`relative z-10 text-[13px] tracking-wide font-medium bg-white text-black px-4 py-2 rounded-full transition-all duration-300 inline-block hover:scale-105`}
           >
-            Launch App
+            Secure Your Legacy
           </button>
           {isScrolled && (
             <motion.div
@@ -284,7 +283,7 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
               onClick={onLaunch}
               className="bg-white text-black border border-white px-8 py-4 text-lg font-semibold tracking-tight flex items-center gap-2 hover:bg-transparent hover:text-white transition-all"
             >
-              Launch App <ArrowRight className="w-5 h-5" />
+              Secure Your Legacy <ArrowRight className="w-5 h-5" />
             </MagneticButton>
             <button className="text-[15px] font-medium tracking-tight text-[#d0d0d0] hover:text-white transition-colors flex items-center gap-1 drop-shadow-md">
               Learn how it works <ChevronRight className="w-4 h-4" />
@@ -403,7 +402,7 @@ const FinalSection = ({ onLaunch }: { onLaunch: () => void }) => (
         onClick={onLaunch}
         className="liquid-glass border border-white/20 px-10 py-5 text-white text-xl font-medium tracking-tight hover:bg-white hover:text-black hover:scale-105"
       >
-        Launch Protocol
+        Begin Your Legacy
       </MagneticButton>
     </div>
   </section>
@@ -430,8 +429,7 @@ const Footer = () => (
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const handleLaunch = useSmartCta(() => setShowWalletModal(true));
+  const handleLaunch = useSmartCta();
 
   return (
     <div className="min-h-screen bg-[#030303] text-white selection:bg-white/20 relative">
@@ -455,7 +453,6 @@ export default function HomePage() {
       <FinalSection onLaunch={handleLaunch} />
       <Footer />
 
-      {showWalletModal && <WalletModal onClose={() => setShowWalletModal(false)} />}
     </div>
   );
 }
