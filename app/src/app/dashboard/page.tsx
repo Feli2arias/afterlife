@@ -5,7 +5,10 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { motion, AnimatePresence } from "framer-motion";
-import { Fingerprint, Users, Coins, Settings2, AlertTriangle, Copy, Check, ChevronRight } from "lucide-react";
+import {
+  Activity, Users, Settings, ShieldAlert, ArrowUpRight,
+  Copy, Fingerprint, Wallet, Clock, TerminalSquare,
+} from "lucide-react";
 import {
   getProgram, fetchVaultConfig, forceExpire, executeDistribution,
   cancelVault, registerVault, checkin, BeneficiaryInput,
@@ -37,30 +40,25 @@ type VaultData = {
   lastCheckin: { toNumber: () => number };
 };
 
-type Tab = "status" | "beneficiaries" | "vault" | "settings";
-
 function timeRemaining(lastCheckin: number, intervalDays: number, gracePeriodDays: number) {
   const deadline = lastCheckin + (intervalDays + gracePeriodDays) * 86_400;
   const now = Math.floor(Date.now() / 1000);
-  const remaining = deadline - now;
-  if (remaining <= 0) return { expired: true, days: 0, hours: 0, mins: 0, secs: 0, pct: 0 };
-  const total = (intervalDays + gracePeriodDays) * 86_400;
+  const remaining = Math.max(0, deadline - now);
   return {
-    expired: false,
-    days: Math.floor(remaining / 86_400),
-    hours: Math.floor((remaining % 86_400) / 3600),
-    mins: Math.floor((remaining % 3600) / 60),
-    secs: remaining % 60,
-    pct: (remaining / total) * 100,
+    expired: remaining === 0,
+    d: Math.floor(remaining / 86400),
+    h: Math.floor((remaining % 86400) / 3600),
+    m: Math.floor((remaining % 3600) / 60),
+    s: remaining % 60,
   };
 }
 
-// ─── Modal shell ───────────────────────────────────────────────────────────────
+// ─── Edit modals ──────────────────────────────────────────────────────────────
 
 function BottomModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center", background: "rgba(0,0,0,0.7)", backdropFilter: "blur(16px)" }}>
-      <div style={{ width: "100%", maxWidth: 560, background: "rgba(12,12,12,0.97)", borderRadius: "24px 24px 0 0", borderTop: "1px solid rgba(255,255,255,0.08)", padding: "28px 24px 40px", fontFamily: SF }}>
+      <div style={{ width: "100%", maxWidth: 560, background: "rgba(8,8,8,0.97)", borderRadius: "24px 24px 0 0", borderTop: "1px solid rgba(255,255,255,0.08)", padding: "28px 24px 44px", fontFamily: SF }}>
         <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
         <div style={{ animation: "slideUp 0.3s cubic-bezier(0.32,0.72,0,1)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
@@ -74,9 +72,7 @@ function BottomModal({ title, onClose, children }: { title: string; onClose: () 
   );
 }
 
-function EditIntervalModal({ current, grace, onSave, onClose, loading }: {
-  current: number; grace: number; onSave: (d: number, g: number) => void; onClose: () => void; loading: boolean;
-}) {
+function EditIntervalModal({ current, grace, onSave, onClose, loading }: { current: number; grace: number; onSave: (d: number, g: number) => void; onClose: () => void; loading: boolean }) {
   const [days, setDays] = useState(current);
   const [gr, setGr] = useState(grace);
   return (
@@ -106,9 +102,7 @@ function EditIntervalModal({ current, grace, onSave, onClose, loading }: {
   );
 }
 
-function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: {
-  initialRows: Array<{ wallet: string; share: number }>; onSave: (rows: BeneficiaryInput[]) => void; onClose: () => void; loading: boolean;
-}) {
+function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { initialRows: Array<{ wallet: string; share: number }>; onSave: (rows: BeneficiaryInput[]) => void; onClose: () => void; loading: boolean }) {
   const [rows, setRows] = useState(initialRows);
   const [error, setError] = useState("");
   const total = rows.reduce((s, r) => s + Number(r.share || 0), 0);
@@ -147,292 +141,6 @@ function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: {
   );
 }
 
-// ─── Tab: Status ──────────────────────────────────────────────────────────────
-
-function StatusTab({ vault, timer, isDemo, onCheckin, checkingIn, hasPinged, solBal }: {
-  vault: VaultData; timer: ReturnType<typeof timeRemaining>; isDemo: boolean;
-  onCheckin: () => void; checkingIn: boolean; hasPinged: boolean; solBal: number;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 py-12 gap-12">
-
-      {/* Timer display */}
-      <div>
-        <div className="text-center mb-3">
-          <span className="text-xs font-mono tracking-widest uppercase text-white/30">
-            {timer.expired ? "Protocol triggered" : "Time remaining"}
-          </span>
-        </div>
-        <div className="flex items-end gap-2 md:gap-4">
-          {[
-            { val: timer.days, label: "Days", opacity: timer.expired ? 0.4 : 0.9 },
-            { val: timer.hours, label: "Hrs", opacity: timer.expired ? 0.2 : 0.6 },
-            { val: timer.mins, label: "Min", opacity: timer.expired ? 0.15 : 0.4 },
-            { val: timer.secs, label: "Sec", opacity: timer.expired ? 0.1 : 0.25 },
-          ].map(({ val, label, opacity }, i) => (
-            <div key={label} className="flex items-end gap-1 md:gap-2">
-              {i > 0 && (
-                <span className="text-2xl md:text-4xl font-bold tracking-tighter pb-5 md:pb-7 text-white/20">:</span>
-              )}
-              <div className="flex flex-col items-center">
-                <span
-                  className="font-bold tracking-tighter leading-none tabular-nums"
-                  style={{
-                    fontSize: i === 0 ? "clamp(4rem, 14vw, 7rem)" : i === 1 ? "clamp(2.5rem, 9vw, 4.5rem)" : i === 2 ? "clamp(1.8rem, 6vw, 3rem)" : "clamp(1.2rem, 4vw, 2rem)",
-                    opacity,
-                    color: timer.expired ? "#ef4444" : "white",
-                    transition: "opacity 0.5s",
-                    fontFamily: SF,
-                  }}
-                >
-                  {String(val).padStart(2, "0")}
-                </span>
-                <span className="text-[10px] tracking-widest uppercase text-white/30 mt-1.5" style={{ fontFamily: SF }}>{label}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Fingerprint button */}
-      {vault.isActive && !timer.expired && (
-        <div className="flex flex-col items-center gap-3">
-          <button
-            onClick={onCheckin}
-            disabled={checkingIn || hasPinged}
-            className="flex items-center justify-center gap-3 px-8 py-4 rounded-full border transition-all duration-300"
-            style={{
-              background: hasPinged ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)",
-              borderColor: hasPinged ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.1)",
-              color: hasPinged ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.8)",
-              cursor: checkingIn || hasPinged ? "default" : "pointer",
-              fontFamily: SF,
-              fontSize: 15,
-              fontWeight: 600,
-              minWidth: 260,
-            }}
-          >
-            <Fingerprint className="w-5 h-5" style={{ opacity: hasPinged ? 0.4 : 0.7 }} />
-            {checkingIn ? "Processing..." : hasPinged ? "Life Confirmed ✓" : "Confirm Proof of Life"}
-          </button>
-          <span className="text-xs text-white/20" style={{ fontFamily: MONO }}>
-            Last check-in: {new Date(vault.lastCheckin.toNumber() * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-          </span>
-        </div>
-      )}
-
-      {timer.expired && (
-        <div className="text-center max-w-xs">
-          <div className="text-sm font-semibold text-red-400 mb-2">Distribution executed</div>
-          <div className="text-sm text-white/30 leading-relaxed" style={{ fontFamily: SF }}>
-            Assets have been distributed to beneficiaries.
-          </div>
-        </div>
-      )}
-
-      {/* % remaining pill */}
-      {!timer.expired && (
-        <div className="px-4 py-1.5 rounded-full border border-white/5 bg-white/[0.03]">
-          <span className="text-xs font-mono text-white/25">{Math.round(timer.pct)}% remaining</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Tab: Beneficiaries ───────────────────────────────────────────────────────
-
-function BeneficiariesTab({ vault, solBal, isDemo, onEdit }: {
-  vault: VaultData; solBal: number; isDemo: boolean; onEdit: () => void;
-}) {
-  return (
-    <div className="px-4 py-8 max-w-xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold text-white/80 tracking-tight" style={{ fontFamily: SF }}>Heirs</h2>
-        {!isDemo && (
-          <button onClick={onEdit} className="text-sm text-white/40 hover:text-white/70 transition-colors flex items-center gap-1" style={{ fontFamily: SF }}>
-            Edit <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-      <div className="space-y-2">
-        {vault.beneficiaries.map((b, i) => (
-          <div key={i} className="flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.02]">
-            <div>
-              <div className="text-sm font-mono text-white/50">
-                {b.wallet.toBase58().slice(0, 8)}...{b.wallet.toBase58().slice(-6)}
-              </div>
-              <div className="text-xs text-white/25 mt-1" style={{ fontFamily: SF }}>
-                ~{(solBal * b.shareBps / 10_000).toFixed(3)} SOL estimated
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-bold text-white/80" style={{ fontFamily: SF }}>{b.shareBps / 100}%</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab: Vault ───────────────────────────────────────────────────────────────
-
-function VaultTab({ solBal }: { solBal: number }) {
-  const SOL_PRICE = 149.42;
-  const usdValue = (solBal * SOL_PRICE).toFixed(2);
-
-  return (
-    <div className="px-4 py-8 max-w-xl mx-auto w-full">
-      <h2 className="text-lg font-semibold text-white/80 tracking-tight mb-6" style={{ fontFamily: SF }}>Assets</h2>
-      <div className="space-y-3">
-        <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.02]">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#9945FF] to-[#14F195] flex items-center justify-center">
-                <svg width="16" height="16" viewBox="0 0 397 311" fill="white">
-                  <path d="M64.6 237.9c2.4-2.4 5.7-3.8 9.2-3.8h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1l62.7-62.7z"/>
-                  <path d="M64.6 3.8C67.1 1.4 70.4 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1L64.6 3.8z"/>
-                  <path d="M333.1 120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8 0-8.7 7-4.6 11.1l62.7 62.7c2.4 2.4 5.7 3.8 9.2 3.8h317.4c5.8 0 8.7-7 4.6-11.1l-62.7-62.7z"/>
-                </svg>
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-white" style={{ fontFamily: SF }}>SOL</div>
-                <div className="text-xs text-white/30" style={{ fontFamily: SF }}>Solana</div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-base font-bold text-white" style={{ fontFamily: SF }}>{solBal.toFixed(4)}</div>
-              <div className="text-xs text-white/30" style={{ fontFamily: SF }}>${usdValue}</div>
-            </div>
-          </div>
-          <div className="h-px bg-white/5 my-3" />
-          <div className="text-xs text-white/25 flex items-center gap-1.5" style={{ fontFamily: SF }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-white/20 inline-block" />
-            Delegated via SPL Token
-          </div>
-        </div>
-
-        <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] opacity-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-[#2775CA] flex items-center justify-center text-white text-xs font-bold">$</div>
-              <div>
-                <div className="text-sm font-semibold text-white" style={{ fontFamily: SF }}>USDC</div>
-                <div className="text-xs text-white/30" style={{ fontFamily: SF }}>USD Coin</div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-base font-bold text-white/40" style={{ fontFamily: SF }}>—</div>
-              <div className="text-xs text-white/20" style={{ fontFamily: SF }}>Not delegated</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab: Settings ────────────────────────────────────────────────────────────
-
-function SettingsTab({ vault, isDemo, claimUrl, onEditInterval, onSimulate, simulating, simMsg, onCancel }: {
-  vault: VaultData; isDemo: boolean; claimUrl: string;
-  onEditInterval: () => void; onSimulate: () => void; simulating: boolean; simMsg: string;
-  onCancel: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [showCancel, setShowCancel] = useState(false);
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(claimUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="px-4 py-8 max-w-xl mx-auto w-full space-y-6">
-
-      {/* Interval */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-white/25 mb-3" style={{ fontFamily: SF }}>Check-in protocol</h3>
-        <div className="rounded-2xl border border-white/5 bg-white/[0.02] overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-white/5">
-            <span className="text-sm text-white/50" style={{ fontFamily: SF }}>Frequency</span>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-white/80" style={{ fontFamily: SF }}>Every {vault.intervalDays} days</span>
-              {!isDemo && (
-                <button onClick={onEditInterval} className="text-xs text-white/30 hover:text-white/60 transition-colors" style={{ fontFamily: SF }}>Edit</button>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center justify-between p-4">
-            <span className="text-sm text-white/50" style={{ fontFamily: SF }}>Grace period</span>
-            <span className="text-sm font-semibold text-white/80" style={{ fontFamily: SF }}>
-              {vault.gracePeriodDays === 0 ? "None" : `+${vault.gracePeriodDays} days`}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Claim link */}
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-white/25 mb-3" style={{ fontFamily: SF }}>Beneficiary link</h3>
-        <div className="flex gap-2">
-          <div className="flex-1 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2.5 text-xs font-mono text-white/25 overflow-hidden text-ellipsis whitespace-nowrap">
-            {claimUrl}
-          </div>
-          <button onClick={copyLink} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.06] transition-all text-xs text-white/50 hover:text-white/80" style={{ fontFamily: SF }}>
-            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? "Copied" : "Copy"}
-          </button>
-        </div>
-      </div>
-
-      {/* Demo: simulate expiry */}
-      {isDemo && (
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-red-500/40 mb-3" style={{ fontFamily: SF }}>Demo</h3>
-          <button onClick={onSimulate} disabled={simulating} className="w-full px-4 py-3 rounded-2xl border border-red-500/20 bg-red-500/[0.05] text-red-400 text-sm font-semibold transition-all hover:bg-red-500/10 disabled:opacity-50" style={{ fontFamily: SF }}>
-            {simulating ? "Simulating..." : "☠  Execute distribution"}
-          </button>
-          {simMsg && <p className="text-xs text-white/30 mt-2" style={{ fontFamily: SF }}>{simMsg}</p>}
-        </div>
-      )}
-
-      {/* Emergency break glass */}
-      {!isDemo && (
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-red-500/40 mb-3" style={{ fontFamily: SF }}>Danger zone</h3>
-          <div className="rounded-2xl border border-red-500/10 bg-red-500/[0.03] p-4">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertTriangle className="w-4 h-4 text-red-500/40 mt-0.5 flex-shrink-0" />
-              <div>
-                <div className="text-sm font-semibold text-white/60 mb-1" style={{ fontFamily: SF }}>Emergency Break Glass</div>
-                <div className="text-xs text-white/25 leading-relaxed" style={{ fontFamily: SF }}>
-                  Permanently cancel your Afterlife vault. This will revoke all delegation authorizations and cannot be undone without redeploying.
-                </div>
-              </div>
-            </div>
-            {!showCancel ? (
-              <button onClick={() => setShowCancel(true)} className="w-full py-2.5 rounded-xl border border-red-500/20 text-red-400/60 text-sm font-medium transition-all hover:border-red-500/40 hover:text-red-400" style={{ fontFamily: SF }}>
-                Revoke Protocol
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-red-400/60 text-center" style={{ fontFamily: SF }}>Are you sure? This cannot be undone.</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowCancel(false)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/40 text-sm" style={{ fontFamily: SF }}>Cancel</button>
-                  <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold" style={{ fontFamily: SF }}>Confirm</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -450,15 +158,15 @@ function DashboardContent() {
   const [vault, setVault] = useState<VaultData | null>(isDemo ? DEMO_VAULT as unknown as VaultData : null);
   const [loading, setLoading] = useState(!isDemo);
   const [solBal, setSolBal] = useState(isDemo ? 4.237 : 0);
-  const [checkingIn, setCheckingIn] = useState(false);
+  const [activeTab, setActiveTab] = useState<"status" | "beneficiaries" | "vault" | "settings">("status");
   const [hasPinged, setHasPinged] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("status");
   const [editInterval, setEditInterval] = useState(false);
   const [editBens, setEditBens] = useState(false);
   const [saving, setSaving] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simMsg, setSimMsg] = useState("");
   const [, setTick] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 1_000);
@@ -481,16 +189,20 @@ function DashboardContent() {
   useEffect(() => { loadVault(); }, [loadVault]);
 
   async function handleCheckin() {
-    if (isDemo) { setHasPinged(true); return; }
+    if (isDemo) {
+      setHasPinged(true);
+      setTimeout(() => setHasPinged(false), 3000);
+      return;
+    }
     if (!publicKey || !wallet) return;
-    setCheckingIn(true);
     try {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
       await checkin(program, publicKey);
       setHasPinged(true);
+      setTimeout(() => setHasPinged(false), 3000);
       await loadVault();
-    } finally { setCheckingIn(false); }
+    } catch (e) { console.error(e); }
   }
 
   async function saveInterval(days: number, grace: number) {
@@ -538,7 +250,7 @@ function DashboardContent() {
     finally { setSimulating(false); }
   }
 
-  async function handleCancel() {
+  async function handleRevoke() {
     if (!publicKey || !wallet) return;
     try {
       const provider = new AnchorProvider(connection, wallet, {});
@@ -550,11 +262,11 @@ function DashboardContent() {
 
   if (!publicKey && !isDemo) {
     return (
-      <div style={{ minHeight: "100vh", background: "#060606", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SF }}>
-        <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
-        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
-          <img src="/logo.png" alt="Afterlife" style={{ width: 44, height: 44, opacity: 0.4 }} />
-          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>Connect your wallet to continue</p>
+      <div className="min-h-screen bg-[#030303] flex items-center justify-center" style={{ fontFamily: SF }}>
+        <div className="bg-noise fixed inset-0 z-[100] pointer-events-none mix-blend-overlay" />
+        <div className="flex flex-col items-center gap-6 text-center">
+          <img src="/logo.png" alt="Afterlife" className="w-11 h-11 opacity-40" />
+          <p className="text-white/30 text-sm">Connect your wallet to continue</p>
           <WalletMultiButton />
         </div>
       </div>
@@ -563,99 +275,376 @@ function DashboardContent() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#060606", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
-        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.2)", fontFamily: SF }}>Loading...</p>
+      <div className="min-h-screen bg-[#030303] flex items-center justify-center">
+        <div className="bg-noise fixed inset-0 z-[100] pointer-events-none mix-blend-overlay" />
+        <p className="text-white/20 text-sm" style={{ fontFamily: SF }}>Loading...</p>
       </div>
     );
   }
 
   if (!vault) return null;
 
-  const lastCheckin = vault.lastCheckin.toNumber();
-  const timer = timeRemaining(lastCheckin, vault.intervalDays, vault.gracePeriodDays);
+  const t = timeRemaining(vault.lastCheckin.toNumber(), vault.intervalDays, vault.gracePeriodDays);
   const ownerAddr = isDemo ? "Demo1111111111111111111111111111111111111111" : publicKey?.toBase58() ?? "";
+  const shortAddr = `${ownerAddr.slice(0, 6)}...${ownerAddr.slice(-4)}`;
   const claimUrl = typeof window !== "undefined" ? `${window.location.origin}/claim/${ownerAddr}` : "";
   const initialBenRows = vault.beneficiaries.map(b => ({ wallet: b.wallet.toBase58(), share: b.shareBps / 100 }));
 
-  const tabs: { id: Tab; icon: React.ReactNode; label: string }[] = [
-    { id: "status", icon: <Fingerprint className="w-4 h-4" />, label: "Status" },
-    { id: "beneficiaries", icon: <Users className="w-4 h-4" />, label: "Heirs" },
-    { id: "vault", icon: <Coins className="w-4 h-4" />, label: "Vault" },
-    { id: "settings", icon: <Settings2 className="w-4 h-4" />, label: "Settings" },
-  ];
-
   return (
-    <div style={{ minHeight: "100vh", background: "#060606", color: "white", fontFamily: SF, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
-      <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
+    <div className="min-h-screen bg-[#030303] text-white" style={{ fontFamily: SF }}>
+      <div className="bg-noise fixed inset-0 z-[100] pointer-events-none mix-blend-overlay" />
 
-      {/* Ambient glow */}
-      <div aria-hidden style={{ position: "fixed", top: "25%", left: "50%", transform: "translate(-50%,-50%)", width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${timer.expired ? "rgba(220,38,38,0.03)" : "rgba(255,255,255,0.025)"} 0%, transparent 65%)`, pointerEvents: "none", zIndex: 0, transition: "background 1.5s" }} />
+      <style>{`
+        @keyframes scan {
+          0% { left: 0; opacity: 0; }
+          10% { opacity: 0.5; }
+          90% { opacity: 0.5; }
+          100% { left: 100%; opacity: 0; }
+        }
+      `}</style>
 
-      {/* Top bar */}
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 30, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", background: "rgba(6,6,6,0.7)", backdropFilter: "blur(40px)", WebkitBackdropFilter: "blur(40px)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-        <a href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8 }}>
-          <img src="/logo.png" alt="Afterlife" style={{ width: 20, height: 20, objectFit: "contain", opacity: 0.45 }} />
-          <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.3)", letterSpacing: "0.02em" }}>Afterlife</span>
-        </a>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {!isDemo && <span style={{ fontSize: 11, fontFamily: MONO, color: "rgba(255,255,255,0.18)" }}>{ownerAddr.slice(0, 6)}...{ownerAddr.slice(-4)}</span>}
-          {!isDemo && <WalletMultiButton style={{ fontSize: 12, borderRadius: 20, height: 32 }} />}
-          {isDemo && <span className="text-xs font-mono px-2.5 py-1 rounded-full border border-white/5 text-white/20">Demo</span>}
-        </div>
-      </div>
+      <div className="min-h-screen pt-24 pb-20 px-6 flex flex-col items-center relative z-10 selection:bg-white/20">
 
-      {/* Tab nav */}
-      <div style={{ position: "fixed", top: 64, left: 0, right: 0, zIndex: 25, display: "flex", justifyContent: "center", padding: "12px 24px", background: "rgba(6,6,6,0.5)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
-        <div className="flex items-center gap-1 p-1 rounded-2xl border border-white/5 bg-white/[0.02]">
-          {tabs.map(tab => (
+        {/* Top nav */}
+        <motion.nav
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.8 }}
+          className="w-full max-w-5xl flex flex-col md:flex-row justify-between items-center gap-6 mb-20"
+        >
+          {/* Wallet address */}
+          <div className="flex items-center gap-2 text-white/50 text-sm font-mono tracking-widest border border-white/5 px-4 py-2 rounded-full bg-white/[0.02]" style={{ fontFamily: MONO }}>
+            <TerminalSquare className="w-4 h-4" />
+            {shortAddr}
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-200"
-              style={{
-                fontFamily: SF,
-                fontSize: 12,
-                fontWeight: activeTab === tab.id ? 600 : 400,
-                color: activeTab === tab.id ? "white" : "rgba(255,255,255,0.3)",
-                background: activeTab === tab.id ? "rgba(255,255,255,0.08)" : "transparent",
-                border: activeTab === tab.id ? "1px solid rgba(255,255,255,0.1)" : "1px solid transparent",
-              }}
+              onClick={() => { navigator.clipboard.writeText(ownerAddr); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              className="hover:text-white transition-colors ml-2"
             >
-              {tab.icon}
-              <span className="hidden sm:inline">{tab.label}</span>
+              <Copy className="w-3 h-3" />
             </button>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* Content */}
-      <div style={{ position: "relative", zIndex: 1, flex: 1, paddingTop: 128 }}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-          >
+          {/* Tab pills */}
+          <div className="flex items-center p-1 border border-white/10 rounded-full bg-white/[0.02] backdrop-blur-md">
+            {(["status", "beneficiaries", "vault", "settings"] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-2 rounded-full text-sm font-medium tracking-wide transition-all ${
+                  activeTab === tab
+                    ? "bg-white text-black shadow-lg"
+                    : "text-[#888] hover:text-white hover:bg-white/5"
+                }`}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Wallet button (real mode) */}
+          {!isDemo && <WalletMultiButton style={{ fontSize: 12, borderRadius: 20, height: 36 }} />}
+        </motion.nav>
+
+        <div className="w-full max-w-5xl flex-1 flex flex-col relative">
+          <AnimatePresence mode="wait">
+
+            {/* ── STATUS ─────────────────────────────────────────────── */}
             {activeTab === "status" && (
-              <StatusTab vault={vault} timer={timer} isDemo={isDemo} onCheckin={handleCheckin} checkingIn={checkingIn} hasPinged={hasPinged} solBal={solBal} />
+              <motion.div
+                key="status"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.5, ease: "anticipate" }}
+                className="flex-1 flex flex-col items-center justify-center text-center mt-10"
+              >
+                {/* Pulse glow */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[-1]">
+                  <div className={`w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] rounded-full blur-[120px] transition-all duration-[3000ms] ${hasPinged ? "bg-white/10 scale-110" : "bg-[#030303] scale-100"}`} />
+                </div>
+
+                <div className="mb-6 flex flex-col items-center">
+                  <p className="text-[#666] font-mono text-sm tracking-[0.3em] uppercase mb-12" style={{ fontFamily: MONO }}>
+                    {t.expired ? "Protocol has been executed" : "Time until protocol execution"}
+                  </p>
+                  <div className="flex items-baseline justify-center gap-4 md:gap-8 font-mono text-white mb-20">
+                    <div className="flex flex-col items-center">
+                      <span className="text-7xl md:text-[9rem] font-bold tracking-tighter leading-none opacity-90">
+                        {t.d.toString().padStart(2, "0")}
+                      </span>
+                      <span className="text-xs text-[#555] uppercase tracking-widest mt-4">Days</span>
+                    </div>
+                    <span className="text-5xl md:text-7xl text-white/20 -translate-y-6">:</span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-7xl md:text-[9rem] font-bold tracking-tighter leading-none opacity-70">
+                        {t.h.toString().padStart(2, "0")}
+                      </span>
+                      <span className="text-xs text-[#555] uppercase tracking-widest mt-4">Hours</span>
+                    </div>
+                    <span className="text-5xl md:text-7xl text-white/20 -translate-y-6">:</span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-7xl md:text-[9rem] font-bold tracking-tighter leading-none opacity-50">
+                        {t.m.toString().padStart(2, "0")}
+                      </span>
+                      <span className="text-xs text-[#555] uppercase tracking-widest mt-4">Mins</span>
+                    </div>
+                    <span className="text-5xl md:text-7xl text-white/20 -translate-y-6">:</span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-7xl md:text-[9rem] font-bold tracking-tighter leading-none opacity-30">
+                        {t.s.toString().padStart(2, "0")}
+                      </span>
+                      <span className="text-xs text-[#555] uppercase tracking-widest mt-4">Secs</span>
+                    </div>
+                  </div>
+                </div>
+
+                {vault.isActive && (
+                  <motion.button
+                    onClick={handleCheckin}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`relative overflow-hidden group flex items-center gap-4 px-10 py-6 rounded-full border ${
+                      hasPinged
+                        ? "border-green-500/50 bg-green-500/10 text-green-400"
+                        : "border-white/20 bg-white/5 text-white hover:bg-white hover:text-black hover:border-white shadow-[0_0_40px_rgba(255,255,255,0.1)] hover:shadow-[0_0_60px_rgba(255,255,255,0.3)]"
+                    } transition-all duration-500`}
+                  >
+                    {!hasPinged && (
+                      <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    )}
+                    <Fingerprint className={`w-8 h-8 relative z-10 ${hasPinged ? "animate-pulse" : "opacity-80 group-hover:opacity-100 group-hover:text-black"}`} />
+                    <span className="relative z-10 text-xl font-bold tracking-widest uppercase">
+                      {hasPinged ? "Proof Confirmed" : "Confirm Proof of Life"}
+                    </span>
+                    {!hasPinged && (
+                      <div className="absolute top-0 bottom-0 left-0 w-1 bg-white opacity-0 group-hover:opacity-50 group-hover:animate-[scan_2s_ease-in-out_infinite]" />
+                    )}
+                  </motion.button>
+                )}
+
+                {!vault.isActive && (
+                  <div className="text-center">
+                    <p className="text-red-400 font-semibold text-lg mb-2">Distribution executed</p>
+                    <p className="text-white/30 text-sm">Assets have been distributed to beneficiaries.</p>
+                  </div>
+                )}
+
+                <p className="mt-8 text-xs font-mono text-[#444] tracking-widest uppercase" style={{ fontFamily: MONO }}>
+                  Contract Status:{" "}
+                  <span className={hasPinged ? "text-green-500" : t.expired ? "text-red-500" : "text-white"}>
+                    {hasPinged ? "Confirmed" : t.expired ? "Triggered" : "Guarding"}
+                  </span>
+                </p>
+              </motion.div>
             )}
+
+            {/* ── BENEFICIARIES ──────────────────────────────────────── */}
             {activeTab === "beneficiaries" && (
-              <BeneficiariesTab vault={vault} solBal={solBal} isDemo={isDemo} onEdit={() => setEditBens(true)} />
+              <motion.div
+                key="beneficiaries"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                className="w-full"
+              >
+                <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-8 md:p-12 backdrop-blur-xl">
+                  <div className="flex justify-between items-center mb-10 border-b border-white/10 pb-6">
+                    <div>
+                      <h2 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-3">
+                        <Users className="w-8 h-8 opacity-50" /> Heirs &amp; Beneficiaries
+                      </h2>
+                      <p className="text-[#888] font-medium">Those designated to inherit your secured assets.</p>
+                    </div>
+                    {!isDemo && (
+                      <button onClick={() => setEditBens(true)} className="text-sm font-medium border border-white/20 px-6 py-3 rounded-full hover:bg-white hover:text-black text-white transition-all shadow-lg">
+                        + Add Beneficiary
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-6">
+                    {vault.beneficiaries.map((b, idx) => (
+                      <div key={idx} className="flex flex-col md:flex-row justify-between md:items-center p-6 rounded-2xl bg-[#080808] border border-white/5 hover:border-white/20 transition-all hover:bg-white/[0.02] gap-6">
+                        <div className="flex items-center gap-6">
+                          <div className="w-14 h-14 rounded-full border border-white/10 bg-white/5 flex items-center justify-center font-mono text-[#888]" style={{ fontFamily: MONO }}>
+                            0{idx + 1}
+                          </div>
+                          <div>
+                            <p className="text-white font-mono text-lg" style={{ fontFamily: MONO }}>
+                              {b.wallet.toBase58().slice(0, 6)}...{b.wallet.toBase58().slice(-4)}
+                            </p>
+                            <p className="text-sm text-[#666] tracking-widest mt-1 uppercase font-semibold">
+                              ~{(solBal * b.shareBps / 10_000).toFixed(3)} SOL
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-8">
+                          <div className="text-right">
+                            <p className="text-[#888] text-xs uppercase tracking-widest mb-1">Allocation</p>
+                            <p className="text-3xl text-white font-bold tracking-tighter">
+                              {b.shareBps / 100}<span className="text-white/50 text-xl">%</span>
+                            </p>
+                          </div>
+                          {!isDemo && (
+                            <button onClick={() => setEditBens(true)} className="w-12 h-12 flex items-center justify-center rounded-full border border-white/10 hover:bg-white hover:text-black transition-colors text-white/50">
+                              <Settings className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
             )}
-            {activeTab === "vault" && <VaultTab solBal={solBal} />}
+
+            {/* ── VAULT ──────────────────────────────────────────────── */}
+            {activeTab === "vault" && (
+              <motion.div
+                key="vault"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                className="w-full"
+              >
+                <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-8 md:p-12 backdrop-blur-xl">
+                  <div className="flex justify-between items-center mb-10 border-b border-white/10 pb-6">
+                    <div>
+                      <h2 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-3">
+                        <Wallet className="w-8 h-8 opacity-50" /> Secured Vault
+                      </h2>
+                      <p className="text-[#888] font-medium">Assets currently governed by your inheritance protocol.</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-[#888] uppercase tracking-widest mb-1">Total Value</p>
+                      <p className="text-4xl font-bold tracking-tighter text-white flex items-center justify-end gap-2">
+                        <ArrowUpRight className="w-6 h-6 text-white/50" />
+                        {solBal.toFixed(3)}<span className="text-xl text-white/30"> SOL</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-[#080808] border border-white/5 rounded-2xl p-8 hover:border-white/20 transition-all">
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                          <span className="text-indigo-400 font-bold text-sm">SOL</span>
+                        </div>
+                        <p className="font-mono text-indigo-400/50 text-sm" style={{ fontFamily: MONO }}>NATIVE</p>
+                      </div>
+                      <p className="text-4xl font-bold text-white tracking-tighter mb-1">
+                        {solBal.toFixed(4)}<span className="text-xl text-[#666]"> SOL</span>
+                      </p>
+                      <p className="text-[#888] font-medium">Delegated via wSOL</p>
+                    </div>
+
+                    <div className="bg-[#080808] border border-white/5 rounded-2xl p-8 hover:border-white/20 transition-all opacity-50">
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                          <span className="text-blue-400 font-bold">$</span>
+                        </div>
+                        <p className="font-mono text-blue-400/50 text-sm" style={{ fontFamily: MONO }}>SPL TOKEN</p>
+                      </div>
+                      <p className="text-4xl font-bold text-white tracking-tighter mb-1">
+                        —<span className="text-xl text-[#666]"> USDC</span>
+                      </p>
+                      <p className="text-[#888] font-medium">Not delegated</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── SETTINGS ───────────────────────────────────────────── */}
             {activeTab === "settings" && (
-              <SettingsTab
-                vault={vault} isDemo={isDemo} claimUrl={claimUrl}
-                onEditInterval={() => setEditInterval(true)}
-                onSimulate={handleSimulate} simulating={simulating} simMsg={simMsg}
-                onCancel={handleCancel}
-              />
+              <motion.div
+                key="settings"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                className="w-full"
+              >
+                <div className="bg-white/[0.02] border border-white/10 rounded-[2rem] p-8 md:p-12 backdrop-blur-xl">
+                  <h2 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-3">
+                    <Settings className="w-8 h-8 opacity-50" /> Protocol Settings
+                  </h2>
+                  <p className="text-[#888] font-medium mb-10 border-b border-white/10 pb-6">
+                    Modify the core rules of your inheritance protocol.
+                  </p>
+
+                  <div className="space-y-8 max-w-2xl">
+
+                    {/* Interval */}
+                    <div>
+                      <h3 className="text-sm uppercase tracking-widest text-white/50 mb-3">Proof of Life Interval</h3>
+                      <div className="bg-[#080808] border border-white/10 rounded-xl p-4 flex justify-between items-center text-white">
+                        <span className="text-lg">Every {vault.intervalDays} Days</span>
+                        {!isDemo && (
+                          <button onClick={() => setEditInterval(true)} className="text-sm underline decoration-white/20 hover:decoration-white transition-all text-[#888] hover:text-white">
+                            Change
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Claim link */}
+                    <div>
+                      <h3 className="text-sm uppercase tracking-widest text-white/50 mb-3">Beneficiary Claim Link</h3>
+                      <div className="bg-[#080808] border border-white/10 rounded-xl p-4 flex gap-3 items-center">
+                        <span className="flex-1 text-sm font-mono text-white/30 overflow-hidden text-ellipsis whitespace-nowrap" style={{ fontFamily: MONO }}>{claimUrl}</span>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(claimUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                          className="text-sm border border-white/20 px-4 py-2 rounded-full hover:bg-white hover:text-black text-white/60 transition-all flex items-center gap-1.5"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> {copied ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Demo simulate */}
+                    {isDemo && (
+                      <div>
+                        <h3 className="text-sm uppercase tracking-widest text-red-500/50 mb-3">Demo — Simulate expiry</h3>
+                        <button onClick={handleSimulate} disabled={simulating} className="px-6 py-3 rounded-full bg-red-500/10 text-red-400 font-semibold border border-red-500/20 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50">
+                          {simulating ? "Simulating..." : "☠  Execute distribution"}
+                        </button>
+                        {simMsg && <p className="text-xs text-white/30 mt-3" style={{ fontFamily: SF }}>{simMsg}</p>}
+                      </div>
+                    )}
+
+                    {/* Emergency break glass */}
+                    <div>
+                      <h3 className="text-sm uppercase tracking-widest text-white/50 mb-3">Emergency Break Glass</h3>
+                      <div className="bg-[#080808] border border-red-500/20 rounded-xl p-6 flex items-start gap-6">
+                        <ShieldAlert className="w-8 h-8 text-red-500 shrink-0" />
+                        <div>
+                          <p className="text-white font-medium mb-2">Revoke Protocol Instantly</p>
+                          <p className="text-sm text-[#888] mb-4">
+                            This will cancel the inheritance plan and return all parameters to default. Secured assets remain untouched in your wallet.
+                          </p>
+                          {!isDemo ? (
+                            <button onClick={handleRevoke} className="px-6 py-3 rounded-full bg-red-500/10 text-red-500 font-semibold border border-red-500/20 hover:bg-red-500 hover:text-white transition-all">
+                              Revoke Protocol
+                            </button>
+                          ) : (
+                            <button disabled className="px-6 py-3 rounded-full bg-red-500/10 text-red-500/40 font-semibold border border-red-500/10 cursor-default">
+                              Revoke Protocol
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </motion.div>
             )}
-          </motion.div>
-        </AnimatePresence>
+
+          </AnimatePresence>
+        </div>
       </div>
 
       {editInterval && vault && (
