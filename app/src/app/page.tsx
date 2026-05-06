@@ -16,12 +16,8 @@ function useSmartCta() {
   const router = useRouter();
 
   return useCallback(async () => {
-    if (!publicKey || !wallet) { router.push("/setup"); return; }
-    const provider = new AnchorProvider(connection, wallet, {});
-    const program = getProgram(provider);
-    const existing = await fetchVaultConfig(program, publicKey);
-    router.push(existing ? "/dashboard" : "/setup");
-  }, [publicKey, wallet, connection, router]);
+    router.push("/setup");
+  }, [router]);
 }
 
 // ─── Components ───────────────────────────────────────────────────────────────

@@ -113,16 +113,11 @@ function SetupContent() {
   // Hint visibility
   const [hints, setHints] = useState({ step1: true, step2: true, step3: true });
 
-  // Check for existing vault on wallet connect
+  // Advance to step 1 once wallet connects
   useEffect(() => {
-    if (isDemo || phase !== 0 || !publicKey || !wallet) return;
-    const provider = new AnchorProvider(connection, wallet, {});
-    const program = getProgram(provider);
-    fetchVaultConfig(program, publicKey).then(existing => {
-      if (existing) { router.push("/dashboard"); return; }
-      setPhase(1);
-    });
-  }, [publicKey, wallet]); // eslint-disable-line
+    if (isDemo || phase !== 0 || !publicKey) return;
+    setPhase(1);
+  }, [publicKey]); // eslint-disable-line
 
   useEffect(() => {
     if (phase === 4 && publicKey) {
