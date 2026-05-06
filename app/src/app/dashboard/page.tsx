@@ -149,7 +149,7 @@ function HoldToConfirm({ onConfirm, loading }: { onConfirm: () => void; loading:
         color: done ? "rgba(255,255,255,0.8)" : holding ? "#ef4444" : "rgba(255,255,255,0.4)",
         transition: "color 0.3s",
       }}>
-        {loading ? "Procesando..." : done ? "✓ Señal recibida" : holding ? "No sueltes..." : "Mantener para confirmar"}
+        {loading ? "Processing..." : done ? "✓ Signal received" : holding ? "Keep holding..." : "Hold to confirm"}
       </div>
       {/* Unicode bar */}
       <div style={{
@@ -181,7 +181,7 @@ function VaultTimer({ days, hours, mins, secs, pct, expired }: {
         color: expired ? "#ef4444" : "rgba(255,255,255,0.3)",
         marginBottom: 28,
       }}>
-        {expired ? "Tiempo agotado" : "Vault activo · Solana Devnet"}
+        {expired ? "Time expired" : "Vault active · Solana Devnet"}
       </div>
 
       {!expired ? (
@@ -189,10 +189,10 @@ function VaultTimer({ days, hours, mins, secs, pct, expired }: {
           {/* Numbers */}
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 8, marginBottom: 16 }}>
             {[
-              { v: String(days).padStart(2, "0"), l: "días" },
+              { v: String(days).padStart(2, "0"), l: "days" },
               { v: String(hours).padStart(2, "0"), l: "hrs" },
               { v: String(mins).padStart(2, "0"), l: "min" },
-              { v: String(secs).padStart(2, "0"), l: "seg" },
+              { v: String(secs).padStart(2, "0"), l: "sec" },
             ].map(({ v, l }, i, arr) => (
               <div key={l} style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
@@ -215,7 +215,7 @@ function VaultTimer({ days, hours, mins, secs, pct, expired }: {
 
           {/* Unicode bar */}
           <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.04em", color: "rgba(255,255,255,0.12)", marginBottom: 8 }}>{bar}</div>
-          <div style={{ fontFamily: SF, fontSize: 11, color: "rgba(255,255,255,0.2)" }}>{pct}% restante</div>
+          <div style={{ fontFamily: SF, fontSize: 11, color: "rgba(255,255,255,0.2)" }}>{pct}% remaining</div>
         </>
       ) : (
         <div style={{ fontFamily: MONO, fontSize: "clamp(40px, 8vw, 72px)", fontWeight: 700, color: "#dc2626", letterSpacing: "-0.04em" }}>
@@ -269,16 +269,16 @@ function InfoPanel({
 
         {/* Header */}
         <div style={{ padding: "14px 24px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "rgba(10,10,10,0.8)", backdropFilter: "blur(20px)", zIndex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>Detalles</div>
-          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "5px 14px", fontFamily: SF }}>Cerrar</button>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>Details</div>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "5px 14px", fontFamily: SF }}>Close</button>
         </div>
 
         <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Beneficiaries */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>Beneficiarios</div>
-              <button onClick={onEditBens} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 11, padding: "4px 12px", fontFamily: SF }}>Editar</button>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>Beneficiaries</div>
+              <button onClick={onEditBens} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 11, padding: "4px 12px", fontFamily: SF }}>Edit</button>
             </div>
             {vault.beneficiaries.map((b, i) => {
               const pct = b.shareBps / 100;
@@ -300,13 +300,13 @@ function InfoPanel({
           {/* Settings */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>Configuración</div>
-              <button onClick={onEditInterval} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 11, padding: "4px 12px", fontFamily: SF }}>Modificar</button>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>Settings</div>
+              <button onClick={onEditInterval} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 11, padding: "4px 12px", fontFamily: SF }}>Edit</button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {[
-                { l: "Frecuencia", v: `Cada ${vault.intervalDays} días` },
-                { l: "Período de gracia", v: vault.gracePeriodDays === 0 ? "Ninguno" : `+${vault.gracePeriodDays} días` },
+                { l: "Frequency", v: `Every ${vault.intervalDays} days` },
+                { l: "Grace period", v: vault.gracePeriodDays === 0 ? "None" : `+${vault.gracePeriodDays} days` },
               ].map(({ l, v }) => (
                 <div key={l} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px" }}>
                   <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)", marginBottom: 6 }}>{l}</div>
@@ -318,21 +318,21 @@ function InfoPanel({
 
           {/* Claim link */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 12 }}>Link para beneficiarios</div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 12 }}>Link for beneficiaries</div>
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "10px 14px", fontSize: 11, fontFamily: MONO, color: "rgba(255,255,255,0.3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {claimUrl}
               </div>
-              <button onClick={() => navigator.clipboard.writeText(claimUrl)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "10px 16px", fontFamily: SF, flexShrink: 0 }}>Copiar</button>
+              <button onClick={() => navigator.clipboard.writeText(claimUrl)} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "10px 16px", fontFamily: SF, flexShrink: 0 }}>Copy</button>
             </div>
           </div>
 
           {/* Demo zone */}
           {isDemo && (
             <div style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 16, padding: "18px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(220,38,38,0.6)", marginBottom: 12 }}>Demo — Simular expiración</div>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(220,38,38,0.6)", marginBottom: 12 }}>Demo — Simulate expiry</div>
               <button onClick={onSimulate} disabled={simulating} style={{ background: simulating ? "rgba(220,38,38,0.1)" : "rgba(220,38,38,0.15)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 12, color: "#ef4444", cursor: simulating ? "default" : "pointer", fontSize: 13, fontWeight: 600, padding: "11px 18px", fontFamily: SF, opacity: simulating ? 0.6 : 1, transition: "all 0.2s" }}>
-                {simulating ? "Simulando..." : "☠ Ejecutar distribución"}
+                {simulating ? "Simulating..." : "☠ Execute distribution"}
               </button>
               {simMsg && <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 10 }}>{simMsg}</p>}
             </div>
@@ -363,23 +363,23 @@ function EditIntervalModal({ current, grace, onSave, onClose, loading }: { curre
   const [days, setDays] = useState(current);
   const [gr, setGr] = useState(grace);
   return (
-    <Modal title="Modificar frecuencia" onClose={onClose}>
-      <div style={{ marginBottom: 8, fontSize: 11, color: "rgba(255,255,255,0.35)", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>Intervalo de check-in</div>
+    <Modal title="Edit check-in interval" onClose={onClose}>
+      <div style={{ marginBottom: 8, fontSize: 11, color: "rgba(255,255,255,0.35)", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>Check-in interval</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
         {[30, 60, 90].map(d => (
-          <button key={d} onClick={() => setDays(d)} style={{ padding: "14px", borderRadius: 14, border: `1px solid ${days === d ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.08)"}`, background: days === d ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)", color: days === d ? "white" : "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 15, fontWeight: 700, fontFamily: SF, transition: "all 0.15s" }}>{d} días</button>
+          <button key={d} onClick={() => setDays(d)} style={{ padding: "14px", borderRadius: 14, border: `1px solid ${days === d ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.08)"}`, background: days === d ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)", color: days === d ? "white" : "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 15, fontWeight: 700, fontFamily: SF, transition: "all 0.15s" }}>{d} days</button>
         ))}
       </div>
-      <div style={{ marginBottom: 8, fontSize: 11, color: "rgba(255,255,255,0.35)", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>Período de gracia</div>
+      <div style={{ marginBottom: 8, fontSize: 11, color: "rgba(255,255,255,0.35)", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>Grace period</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
         {[0, 3, 7, 14].map(d => (
           <button key={d} onClick={() => setGr(d)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, border: `1px solid ${gr === d ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.08)"}`, background: gr === d ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)", color: gr === d ? "white" : "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: SF, transition: "all 0.15s" }}>
-            {d === 0 ? "Sin gracia" : `+${d}d`}
+            {d === 0 ? "No grace" : `+${d}d`}
           </button>
         ))}
       </div>
       <button onClick={() => onSave(days, gr)} disabled={loading} style={{ width: "100%", padding: "14px", borderRadius: 14, background: loading ? "rgba(255,255,255,0.3)" : "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: loading ? "default" : "pointer", fontFamily: SF }}>
-        {loading ? "Guardando..." : "Guardar"}
+        {loading ? "Saving..." : "Save"}
       </button>
     </Modal>
   );
@@ -391,21 +391,21 @@ function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { ini
   const total = rows.reduce((s, r) => s + Number(r.share || 0), 0);
 
   function validate(): BeneficiaryInput[] | null {
-    if (Math.abs(total - 100) > 0.01) { setError("La suma debe ser 100%"); return null; }
+    if (Math.abs(total - 100) > 0.01) { setError("Total must be 100%"); return null; }
     const result: BeneficiaryInput[] = [];
     for (const row of rows) {
       try { result.push({ wallet: new PublicKey(row.wallet.trim()), shareBps: Math.round(row.share * 100) }); }
-      catch { setError(`Wallet inválida: ${row.wallet.slice(0, 16)}`); return null; }
+      catch { setError(`Invalid wallet: ${row.wallet.slice(0, 16)}`); return null; }
     }
     return result;
   }
 
   return (
-    <Modal title="Editar beneficiarios" onClose={onClose}>
+    <Modal title="Edit beneficiaries" onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {rows.map((row, i) => (
           <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input value={row.wallet} onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, wallet: e.target.value } : r))} placeholder="Dirección de wallet" style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 12px", fontSize: 12, color: "white", fontFamily: MONO, outline: "none" }} />
+            <input value={row.wallet} onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, wallet: e.target.value } : r))} placeholder="Wallet address" style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 12px", fontSize: 12, color: "white", fontFamily: MONO, outline: "none" }} />
             <input type="number" min={1} max={100} value={row.share} onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, share: Number(e.target.value) } : r))} style={{ width: 56, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 6px", fontSize: 13, color: "white", textAlign: "center", fontFamily: SF, outline: "none" }} />
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>%</span>
             {rows.length > 1 && <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", fontSize: 16, padding: "0 4px" }}>×</button>}
@@ -413,12 +413,12 @@ function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { ini
         ))}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <button onClick={() => rows.length < 5 && setRows(prev => [...prev, { wallet: "", share: 0 }])} disabled={rows.length >= 5} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, fontFamily: SF, padding: 0 }}>+ Agregar</button>
+        <button onClick={() => rows.length < 5 && setRows(prev => [...prev, { wallet: "", share: 0 }])} disabled={rows.length >= 5} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, fontFamily: SF, padding: 0 }}>+ Add</button>
         <span style={{ fontSize: 13, fontWeight: 700, color: Math.abs(total - 100) < 0.01 ? "rgba(255,255,255,0.6)" : "#ef4444" }}>{total}%</span>
       </div>
       {error && <p style={{ fontSize: 12, color: "#ef4444", marginBottom: 12 }}>{error}</p>}
       <button onClick={() => { const v = validate(); if (v) onSave(v); }} disabled={loading} style={{ width: "100%", padding: "14px", borderRadius: 14, background: loading ? "rgba(255,255,255,0.3)" : "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: loading ? "default" : "pointer", fontFamily: SF }}>
-        {loading ? "Guardando..." : "Guardar"}
+        {loading ? "Saving..." : "Save"}
       </button>
     </Modal>
   );
@@ -519,9 +519,9 @@ function DashboardContent() {
       const program = getProgram(provider);
       setSimMsg("Backdating timer...");
       await forceExpire(program, publicKey);
-      setSimMsg("Ejecutando distribución...");
+      setSimMsg("Executing distribution...");
       await executeDistribution(program, publicKey, publicKey);
-      setSimMsg("Listo");
+      setSimMsg("Done");
       await loadVault();
     } catch (e) { setSimMsg("Error: " + (e instanceof Error ? e.message : String(e))); }
     finally { setSimulating(false); }
@@ -533,7 +533,7 @@ function DashboardContent() {
         <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
         <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
           <img src="/logo.png" alt="Vigil" style={{ width: 40, height: 40, opacity: 0.5 }} />
-          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.35)" }}>Conectá tu wallet para acceder</p>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.35)" }}>Connect your wallet to continue</p>
           <WalletMultiButton />
         </div>
       </div>
@@ -544,7 +544,7 @@ function DashboardContent() {
     return (
       <div style={{ minHeight: "100vh", background: "#030303", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SF }}>
         <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
-        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", letterSpacing: "0.06em" }}>Cargando...</p>
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", letterSpacing: "0.06em" }}>Loading...</p>
       </div>
     );
   }
@@ -598,7 +598,7 @@ function DashboardContent() {
             style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, color: "rgba(255,255,255,0.55)", cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "6px 14px", fontFamily: SF, transition: "all 0.15s" }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.55)"; }}
-          >Info</button>
+          >Details</button>
           {!isDemo && <WalletMultiButton style={{ fontSize: 12, borderRadius: 20, height: 34 }} />}
         </div>
       </div>
@@ -623,13 +623,13 @@ function DashboardContent() {
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
             <HoldToConfirm onConfirm={handleCheckin} loading={checkingIn} />
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
-              Último check-in: {new Date(lastCheckin * 1000).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}
+              Last check-in: {new Date(lastCheckin * 1000).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}
             </div>
           </div>
         ) : (
           <div className="liquid-glass" style={{ width: "100%", borderRadius: 20, padding: "28px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#ef4444", marginBottom: 10 }}>Distribución ejecutada</div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", lineHeight: 1.7 }}>Los activos fueron enviados a los beneficiarios.</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#ef4444", marginBottom: 10 }}>Distribution executed</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", lineHeight: 1.7 }}>Assets have been distributed to beneficiaries.</div>
           </div>
         )}
       </div>
