@@ -1,6 +1,6 @@
 "use client";
 import { Suspense } from "react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
@@ -8,23 +8,11 @@ import { PublicKey, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getProgram, registerVault, fetchVaultConfig, BeneficiaryInput } from "@/lib/vigil";
 import { getUserTokenAccounts, wrapAndApproveSOL, approveDelegateForToken } from "@/lib/delegate";
 import { useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { ShieldCheck, Users, Activity, CheckCircle, ChevronRight, SkipForward, Plus, ArrowRight } from "lucide-react";
 
-const G = {
-  bg: "#030303",
-  glass: "rgba(200,200,200,0.04)",
-  glassBorder: "rgba(255,255,255,0.08)",
-  glassBorderHover: "rgba(255,255,255,0.2)",
-  emerald: "rgba(255,255,255,0.9)",
-  emeraldDim: "rgba(255,255,255,0.06)",
-  emeraldBorder: "rgba(255,255,255,0.12)",
-  text: "#ffffff",
-  textMuted: "#a1a1aa",
-  textDim: "#52525b",
-  inputBg: "rgba(255,255,255,0.03)",
-  inputBorder: "rgba(255,255,255,0.08)",
-  inputFocus: "rgba(255,255,255,0.25)",
-  danger: "#ef4444",
-};
+const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif";
+const MONO = "'SF Mono', 'Fira Code', 'Courier New', monospace";
 
 function Tooltip({ text }: { text: string }) {
   const [show, setShow] = useState(false);
@@ -33,75 +21,50 @@ function Tooltip({ text }: { text: string }) {
       <button
         onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
         onFocus={() => setShow(true)} onBlur={() => setShow(false)}
-        style={{ background: "none", border: "none", cursor: "pointer", color: G.textDim, padding: "2px 4px", lineHeight: 1, fontSize: 13 }}
+        style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.2)", padding: "2px 4px", lineHeight: 1, fontSize: 13 }}
       >ⓘ</button>
       {show && (
-        <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "rgba(20,20,20,0.97)", border: `1px solid ${G.glassBorder}`, borderRadius: 10, padding: "10px 14px", width: 220, zIndex: 50, fontSize: 12, color: G.textMuted, lineHeight: 1.6, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", backdropFilter: "blur(16px)" }}>
+        <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "rgba(10,10,10,0.97)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "10px 14px", width: 220, zIndex: 50, fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.6, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", backdropFilter: "blur(16px)", fontFamily: SF }}>
           {text}
-          <div style={{ position: "absolute", bottom: -5, left: "50%", width: 8, height: 8, background: "rgba(20,20,20,0.97)", border: `1px solid ${G.glassBorder}`, borderTop: "none", borderLeft: "none", transform: "translateX(-50%) rotate(45deg)" }} />
         </div>
       )}
     </div>
   );
 }
 
-const STEP_LABELS = ["Wallet", "Beneficiaries", "Check-in", "Authorize", "Review"];
+const STEPS = [
+  {
+    id: "welcome",
+    title: "The Final Protocol",
+    description: "Afterlife is a decentralized inheritance protocol. Before you launch your vault, we need to configure your end-of-life directives.",
+    popupText: "Welcome to Afterlife. This tutorial will guide you through setting up your digital inheritance layer.",
+  },
+  {
+    id: "beneficiaries",
+    title: "Designate Heirs",
+    description: "Who receives your assets when the protocol is triggered?",
+    popupText: "Add the wallet addresses of your heirs. You can configure exact percentage allocations for each beneficiary.",
+  },
+  {
+    id: "proof_of_life",
+    title: "Proof of Life",
+    description: "How often will you confirm you are still here?",
+    popupText: "Set your check-in interval. If you fail to ping within this time frame, your heirs will be able to claim the assets.",
+  },
+  {
+    id: "deploy",
+    title: "Deploy Protocol",
+    description: "Review your directives before locking them into the smart contract.",
+    popupText: "Double-check your settings. Deploying will write these rules directly to the blockchain. Network fees apply.",
+  },
+];
 
-function ProgressDots({ current, total, onJump }: { current: number; total: number; onJump?: (i: number) => void }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 36 }}>
-      {Array.from({ length: total }).map((_, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <div
-              onClick={() => onJump?.(i)}
-              style={{ width: i === current ? 32 : 28, height: i === current ? 32 : 28, borderRadius: "50%", background: i < current ? G.emerald : i === current ? G.emeraldDim : "rgba(255,255,255,0.04)", border: `2px solid ${i <= current ? G.emerald : G.glassBorder}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease", fontSize: 11, fontWeight: 700, color: i < current ? "white" : i === current ? G.emerald : G.textDim, cursor: onJump ? "pointer" : "default" }}
-            >
-              {i < current ? (
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6.5L4.5 9L10 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              ) : (i + 1)}
-            </div>
-            <span style={{ fontSize: 10, color: i === current ? G.emerald : G.textDim, transition: "color 0.3s", fontWeight: i === current ? 600 : 400, whiteSpace: "nowrap" }}>
-              {STEP_LABELS[i]}
-            </span>
-          </div>
-          {i < total - 1 && (
-            <div style={{ width: 32, height: 2, background: i < current ? G.emerald : G.glassBorder, marginBottom: 20, transition: "background 0.3s ease", marginLeft: 2, marginRight: 2 }} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StepCard({ visible, children }: { visible: boolean; children: React.ReactNode }) {
-  return (
-    <div style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(16px)", transition: "opacity 0.25s ease, transform 0.25s ease" }}>
-      {children}
-    </div>
-  );
-}
-
-function Hint({ icon, children }: { icon: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: "flex", gap: 10, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 14px", marginBottom: 20 }}>
-      <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
-      <p style={{ fontSize: 13, color: "#a1a1aa", lineHeight: 1.55, margin: 0 }}>{children}</p>
-    </div>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", boxSizing: "border-box",
-  background: G.inputBg, border: `1px solid ${G.inputBorder}`,
-  borderRadius: 12, padding: "12px 16px",
-  fontSize: 14, color: G.text, fontFamily: "inherit",
-  outline: "none", transition: "border-color 0.2s",
-};
-
-const monoInputStyle: React.CSSProperties = {
-  ...inputStyle, fontFamily: "monospace", fontSize: 13,
-};
+const STEP_BG = [
+  "radial-gradient(ellipse at center, rgba(30,30,30,0.8) 0%, #030303 100%)",
+  "radial-gradient(ellipse at top, rgba(30,58,138,0.15) 0%, #030303 80%)",
+  "radial-gradient(ellipse at top, rgba(20,83,45,0.15) 0%, #030303 80%)",
+  "radial-gradient(ellipse at center, rgba(88,28,135,0.15) 0%, #030303 80%)",
+];
 
 export default function SetupPage() {
   return <Suspense><SetupContent /></Suspense>;
@@ -115,8 +78,8 @@ function SetupContent() {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demo") === "1";
 
+  // step 0 = wallet connect, 1-4 = onboarding steps
   const [step, setStep] = useState(isDemo ? 1 : 0);
-  const [visible, setVisible] = useState(true);
   const [rows, setRows] = useState([{ wallet: "", share: 100 }]);
   const [intervalDays, setIntervalDays] = useState(30);
   const [gracePeriodDays, setGracePeriodDays] = useState(0);
@@ -125,17 +88,20 @@ function SetupContent() {
   const [approved, setApproved] = useState<Set<string>>(new Set());
   const [deploying, setDeploying] = useState(false);
   const [error, setError] = useState("");
-  const [fieldFocus, setFieldFocus] = useState<string | null>(null);
+  const [showPopup, setShowPopup] = useState(true);
+
+  // 0-indexed for STEPS array: step 1 → STEPS[0], step 2 → STEPS[1], etc.
+  const stepIdx = Math.max(0, step - 1);
+  const currentStepData = STEPS[Math.min(stepIdx, STEPS.length - 1)];
 
   useEffect(() => {
     if (isDemo) return;
-    if (!publicKey || !wallet) return;
-    if (step !== 0) return;
+    if (!publicKey || !wallet || step !== 0) return;
     const provider = new AnchorProvider(connection, wallet, {});
     const program = getProgram(provider);
     fetchVaultConfig(program, publicKey).then(existing => {
       if (existing) { router.push("/dashboard"); return; }
-      transition(1);
+      setStep(1);
     });
   }, [publicKey, wallet]); // eslint-disable-line
 
@@ -144,10 +110,9 @@ function SetupContent() {
     getUserTokenAccounts(connection, publicKey).then(setTokenInfos);
   }, [step, publicKey]); // eslint-disable-line
 
-  function transition(next: number) {
-    setVisible(false);
-    setTimeout(() => { setStep(next); setVisible(true); setError(""); }, 220);
-  }
+  useEffect(() => {
+    setShowPopup(true);
+  }, [step]);
 
   const totalShare = rows.reduce((s, r) => s + Number(r.share || 0), 0);
 
@@ -179,6 +144,7 @@ function SetupContent() {
   }
 
   async function handleDeploy() {
+    if (isDemo) { router.push("/dashboard?demo=1"); return; }
     if (!publicKey || !wallet) return;
     setDeploying(true); setError("");
     try {
@@ -194,362 +160,321 @@ function SetupContent() {
     }
   }
 
-  return (
-    <div style={{ minHeight: "100vh", background: G.bg, color: G.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", position: "relative", overflow: "hidden" }}>
+  function goNext() {
+    setError("");
+    if (step === 1) {
+      const v = validateBeneficiaries();
+      if (!v && !isDemo) return;
+    }
+    if (step < 4) setStep(step + 1);
+    else handleDeploy();
+  }
 
+  function goBack() {
+    setError("");
+    if (step > 1) setStep(step - 1);
+    else router.push("/");
+  }
+
+  // Step 0: wallet connect screen (pre-onboarding)
+  if (step === 0) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#030303", color: "white", fontFamily: SF, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(30,30,30,0.6) 0%, #030303 70%)" }} />
+        <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 440, textAlign: "center" }}>
+          <div style={{ width: 72, height: 72, margin: "0 auto 28px", borderRadius: 22, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ShieldCheck className="w-8 h-8 text-white/30" />
+          </div>
+          <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 12 }}>Welcome to Afterlife</h1>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.45)", lineHeight: 1.65, marginBottom: 40, maxWidth: 340, margin: "0 auto 40px" }}>
+            Your crypto legacy, secured on-chain. Connect your wallet to begin.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
+            <WalletMultiButton style={{ width: "100%", maxWidth: 300, justifyContent: "center", borderRadius: 999, padding: "14px 24px", fontSize: 15, fontWeight: 600 }} />
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Phantom, Solflare & more · Devnet</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Steps 1-4: OnboardingView design
+  return (
+    <div style={{ minHeight: "100vh", background: "#030303", color: "white", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", fontFamily: SF }}>
       <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
 
-      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
-        <div style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.025) 0%, transparent 65%)", top: "-20%", left: "-15%", animation: "blob1 18s ease-in-out infinite" }} />
-        <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.015) 0%, transparent 65%)", bottom: "-10%", right: "-5%", animation: "blob2 22s ease-in-out infinite" }} />
-      </div>
+      {/* Dynamic background per step */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`bg-${step}`}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          transition={{ duration: 0.8 }}
+          style={{ position: "absolute", inset: 0, zIndex: 0, background: STEP_BG[stepIdx] || STEP_BG[0] }}
+        />
+      </AnimatePresence>
 
-      <style>{`
-        @keyframes blob1{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,-30px)}}
-        @keyframes blob2{0%,100%{transform:translate(0,0)}50%{transform:translate(-30px,20px)}}
-        input:focus{border-color:rgba(255,255,255,0.25)!important;box-shadow:0 0 0 3px rgba(255,255,255,0.05)}
-        input[type=number]::-webkit-inner-spin-button{opacity:0.5}
-        .tok-btn:hover{border-color:rgba(255,255,255,0.2)!important;background:rgba(255,255,255,0.04)!important}
-      `}</style>
-
-      <div style={{ position: "fixed", top: 20, left: 24, zIndex: 10 }}>
-        <a href="/" style={{ color: G.textDim, fontSize: 13, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, transition: "color 0.2s" }}
-          onMouseEnter={e => (e.currentTarget.style.color = G.text)}
-          onMouseLeave={e => (e.currentTarget.style.color = G.textDim)}
+      {/* Back nav */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 30, padding: "20px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <button onClick={goBack} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 13, fontFamily: SF, display: "flex", alignItems: "center", gap: 6, padding: 0 }}
+          onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}
+          onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.3)")}
         >
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           Afterlife
-        </a>
+        </button>
+        <span style={{ fontSize: 11, fontFamily: MONO, color: "rgba(255,255,255,0.2)", letterSpacing: "0.12em" }}>
+          {stepIdx + 1} / {STEPS.length}
+        </span>
       </div>
 
-      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 560 }}>
-
-        {/* Step 0: Connect */}
-        {step === 0 && (
-          <StepCard visible={visible}>
-            <div className="liquid-glass" style={{ borderRadius: 28, padding: "48px 40px", textAlign: "center" }}>
-              <div style={{ width: 64, height: 64, borderRadius: 18, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
-                <img src="/logo.png" alt="Afterlife" style={{ width: 36, height: 36, objectFit: "contain" }} />
-              </div>
-
-              <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 12 }}>Welcome to Afterlife</h1>
-              <p style={{ fontSize: 15, color: G.textMuted, lineHeight: 1.65, marginBottom: 36, maxWidth: 380, margin: "0 auto 36px" }}>
-                Your crypto legacy, secured on-chain. Set up in minutes who receives your assets if something happens.
+      {/* Main content */}
+      <div style={{ position: "relative", zIndex: 1, flex: 1, width: "100%", maxWidth: 1200, margin: "0 auto", padding: "100px 28px 40px", display: "flex", flexDirection: "column" }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            style={{ flex: 1, display: "flex", flexDirection: "column" }}
+          >
+            {/* Step header */}
+            <div style={{ marginBottom: 48, maxWidth: 680 }}>
+              <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,255,255,0.28)", display: "block", marginBottom: 16 }}>
+                Stage 0{stepIdx + 1}
+              </span>
+              <h1 style={{ fontSize: "clamp(2.5rem, 7vw, 5rem)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.05, marginBottom: 20 }}>
+                {currentStepData.title}
+              </h1>
+              <p style={{ fontSize: "clamp(1rem, 2.5vw, 1.25rem)", color: "rgba(255,255,255,0.45)", lineHeight: 1.6, maxWidth: 560 }}>
+                {currentStepData.description}
               </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center" }}>
-                <WalletMultiButton style={{ width: "100%", maxWidth: 320, justifyContent: "center", borderRadius: 999, padding: "14px 24px", fontSize: 15, fontWeight: 600 }} />
-                <p style={{ fontSize: 12, color: G.textDim }}>Phantom, Solflare & more · Devnet</p>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 40, paddingTop: 32, borderTop: `1px solid ${G.glassBorder}` }}>
-                {[
-                  { icon: "🔐", t: "Non-custodial", s: "Your keys, always" },
-                  { icon: "⚡", t: "2 minutes", s: "Quick setup" },
-                  { icon: "🌐", t: "On-chain", s: "No intermediaries" },
-                ].map(({ icon, t, s }) => (
-                  <div key={t} style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 20, marginBottom: 6 }}>{icon}</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: G.text }}>{t}</div>
-                    <div style={{ fontSize: 11, color: G.textDim, marginTop: 2 }}>{s}</div>
-                  </div>
-                ))}
-              </div>
             </div>
-          </StepCard>
-        )}
 
-        {/* Steps 1–4 */}
-        {step >= 1 && (
-          <StepCard visible={visible}>
-            <div className="liquid-glass" style={{ borderRadius: 28, padding: "40px 36px" }}>
+            {/* Step interactive area */}
+            <div style={{ flex: 1 }}>
 
-              <ProgressDots current={step - 1} total={4} onJump={isDemo ? (i) => transition(i + 1) : undefined} />
-
-              {/* Step 1: Beneficiaries */}
+              {/* Step 1: Designate Heirs */}
               {step === 1 && (
-                <div>
-                  <div style={{ marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>Who receives your assets?</h2>
-                    <p style={{ fontSize: 14, color: G.textMuted, lineHeight: 1.6 }}>Enter each person's wallet address and their percentage share.</p>
+                <div style={{ width: "100%", maxWidth: 700, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 28, background: "rgba(255,255,255,0.02)", backdropFilter: "blur(20px)", padding: "32px 36px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                    <h3 style={{ fontSize: 17, fontWeight: 700 }}>Heirs List</h3>
+                    <button
+                      onClick={() => rows.length < 5 && setRows(prev => [...prev, { wallet: "", share: 0 }])}
+                      disabled={rows.length >= 5}
+                      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, background: rows.length >= 5 ? "rgba(255,255,255,0.1)" : "white", color: rows.length >= 5 ? "rgba(255,255,255,0.3)" : "black", padding: "8px 16px", borderRadius: 99, border: "none", cursor: rows.length >= 5 ? "default" : "pointer", fontWeight: 600, fontFamily: SF }}
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Address
+                    </button>
                   </div>
-
-                  <Hint icon="💡">
-                    Beneficiaries are the people who will receive your crypto when the timer expires. You can add up to 5, with any percentage split.
-                  </Hint>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {rows.map((row, i) => (
-                      <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <div key={i} style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)" }}>
                         <div style={{ flex: 1 }}>
-                          {i === 0 && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                              <label style={{ fontSize: 11, color: G.textDim, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>Wallet</label>
-                              <Tooltip text="The beneficiary's public Solana address. The person you want to receive your funds." />
-                            </div>
-                          )}
+                          <label style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 6, fontFamily: SF }}>
+                            Wallet Address (Solana)
+                            <Tooltip text="The beneficiary's public Solana address." />
+                          </label>
                           <input
-                            placeholder={`Beneficiary ${i + 1} — wallet address`}
+                            type="text"
+                            placeholder="e.g. 7aXP...9b2C"
                             value={row.wallet}
                             onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, wallet: e.target.value } : r))}
-                            onFocus={() => setFieldFocus(`w${i}`)}
-                            onBlur={() => setFieldFocus(null)}
-                            style={{ ...monoInputStyle, borderColor: fieldFocus === `w${i}` ? G.inputFocus : G.inputBorder }}
+                            style={{ width: "100%", background: "transparent", border: "none", color: "white", fontSize: 14, fontFamily: MONO, outline: "none" }}
                           />
                         </div>
-                        <div style={{ flexShrink: 0 }}>
-                          {i === 0 && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                              <label style={{ fontSize: 11, color: G.textDim, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>%</label>
-                              <Tooltip text="Percentage of the total this beneficiary will receive. All must add up to 100%." />
-                            </div>
-                          )}
+                        <div style={{ flexShrink: 0, width: 100 }}>
+                          <label style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 6, fontFamily: SF }}>Share (%)</label>
                           <input
                             type="number" min={1} max={100}
                             value={row.share}
                             onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, share: Number(e.target.value) } : r))}
-                            onFocus={() => setFieldFocus(`s${i}`)}
-                            onBlur={() => setFieldFocus(null)}
-                            style={{ ...inputStyle, width: 72, textAlign: "center", borderColor: fieldFocus === `s${i}` ? G.inputFocus : G.inputBorder }}
+                            style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "8px 10px", color: "white", textAlign: "center", fontSize: 13, fontFamily: SF, outline: "none" }}
                           />
                         </div>
                         {rows.length > 1 && (
-                          <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))}
-                            style={{ background: "none", border: "none", color: G.textDim, cursor: "pointer", fontSize: 18, padding: "0 4px", marginTop: i === 0 ? 22 : 0, flexShrink: 0, transition: "color 0.2s" }}
-                            onMouseEnter={e => (e.currentTarget.style.color = G.danger)}
-                            onMouseLeave={e => (e.currentTarget.style.color = G.textDim)}
-                          >×</button>
+                          <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", fontSize: 18, padding: "0 4px", flexShrink: 0 }}>×</button>
                         )}
                       </div>
                     ))}
                   </div>
-
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-                    <button
-                      onClick={() => rows.length < 5 && setRows(prev => [...prev, { wallet: "", share: 0 }])}
-                      disabled={rows.length >= 5}
-                      style={{ background: "none", border: "none", color: rows.length >= 5 ? G.textDim : G.emerald, cursor: rows.length >= 5 ? "default" : "pointer", fontSize: 13, fontWeight: 500, padding: 0, transition: "opacity 0.2s", opacity: rows.length >= 5 ? 0.4 : 1 }}
-                    >+ Add beneficiary</button>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ height: 4, width: 80, background: G.glassBorder, borderRadius: 99, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${Math.min(totalShare, 100)}%`, background: Math.abs(totalShare - 100) < 0.01 ? G.emerald : totalShare > 100 ? G.danger : "#f59e0b", borderRadius: 99, transition: "width 0.3s, background 0.3s" }} />
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: Math.abs(totalShare - 100) < 0.01 ? G.emerald : G.danger }}>{totalShare}%</span>
+                  <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: 16, gap: 8 }}>
+                    <div style={{ height: 3, width: 60, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${Math.min(totalShare, 100)}%`, background: Math.abs(totalShare - 100) < 0.01 ? "rgba(255,255,255,0.6)" : totalShare > 100 ? "#ef4444" : "#f59e0b", borderRadius: 99, transition: "width 0.3s, background 0.3s" }} />
                     </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: Math.abs(totalShare - 100) < 0.01 ? "rgba(255,255,255,0.7)" : "#ef4444" }}>{totalShare}%</span>
                   </div>
-
-                  {error && <p style={{ fontSize: 13, color: G.danger, marginBottom: 16 }}>{error}</p>}
-
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => transition(0)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)")}
-                      onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
-                    >← Back</button>
-                    <button onClick={() => { const v = validateBeneficiaries(); if (v) transition(2); }}
-                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,1)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "white")}
-                    >Continue →</button>
-                  </div>
+                  {error && <p style={{ fontSize: 13, color: "#ef4444", marginTop: 12 }}>{error}</p>}
                 </div>
               )}
 
-              {/* Step 2: Interval */}
+              {/* Step 2: Proof of Life (interval) */}
               {step === 2 && (
-                <div>
-                  <div style={{ marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>How often will you check in?</h2>
-                    <p style={{ fontSize: 14, color: G.textMuted, lineHeight: 1.6 }}>If you don't check in before the deadline, Afterlife will distribute your assets.</p>
-                  </div>
-
-                  <Hint icon="⏱">
-                    This is your <strong style={{ color: "white" }}>dead man's switch</strong>. Each period you must confirm you're still alive with one click. If you don't, your beneficiaries receive everything.
-                  </Hint>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 24 }}>
+                <div style={{ width: "100%", maxWidth: 560, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 28, background: "rgba(255,255,255,0.02)", backdropFilter: "blur(20px)", padding: "32px 36px" }}>
+                  <Activity className="w-10 h-10 text-white/30 mb-8" />
+                  <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>Select Interval</h3>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 28 }}>
                     {[
-                      { days: 30, label: "30 days", sub: "Monthly", rec: false },
-                      { days: 60, label: "60 days", sub: "Bimonthly", rec: true },
-                      { days: 90, label: "90 days", sub: "Quarterly", rec: false },
+                      { days: 7, label: "7 Days" },
+                      { days: 30, label: "30 Days" },
+                      { days: 90, label: "90 Days" },
+                      { days: 365, label: "365 Days" },
                     ].map(opt => (
                       <button key={opt.days} onClick={() => setIntervalDays(opt.days)}
-                        style={{ padding: "18px 12px", borderRadius: 16, border: `2px solid ${intervalDays === opt.days ? G.emerald : G.glassBorder}`, background: intervalDays === opt.days ? G.emeraldDim : "rgba(255,255,255,0.02)", color: intervalDays === opt.days ? G.text : G.textMuted, cursor: "pointer", transition: "all 0.2s", position: "relative", textAlign: "center" }}>
-                        {opt.rec && <div style={{ position: "absolute", top: -8, right: -8, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)", color: "white", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 99 }}>REC</div>}
-                        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{opt.label}</div>
-                        <div style={{ fontSize: 11, opacity: 0.7 }}>{opt.sub}</div>
+                        style={{ padding: "20px", borderRadius: 18, border: `1px solid ${intervalDays === opt.days ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.08)"}`, background: intervalDays === opt.days ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.3)", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: intervalDays === opt.days ? "white" : "rgba(255,255,255,0.4)", fontFamily: SF, display: "block" }}>{opt.label}</span>
+                        <p style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 6, fontFamily: SF }}>Interval</p>
                       </button>
                     ))}
                   </div>
-
-                  <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${G.glassBorder}`, borderRadius: 16, padding: "18px 20px", marginBottom: 24 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 14, color: G.text, fontWeight: 500 }}>Grace period</span>
-                      <Tooltip text="Extra time after the deadline where you can still do an emergency check-in. Ideal if you're traveling without internet." />
-                      <span style={{ marginLeft: "auto", fontSize: 13, color: G.emerald, fontWeight: 600 }}>
-                        {gracePeriodDays === 0 ? "None" : `+${gracePeriodDays} days`}
-                      </span>
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontFamily: SF }}>Grace period</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.7)", fontFamily: SF }}>{gracePeriodDays === 0 ? "None" : `+${gracePeriodDays} days`}</span>
                     </div>
-                    <p style={{ fontSize: 12, color: G.textDim, marginBottom: 12, lineHeight: 1.5 }}>Extra buffer before triggering distribution.</p>
                     <div style={{ display: "flex", gap: 8 }}>
                       {[0, 3, 7, 14].map(d => (
                         <button key={d} onClick={() => setGracePeriodDays(d)}
-                          style={{ flex: 1, padding: "8px 4px", borderRadius: 10, border: `1px solid ${gracePeriodDays === d ? G.emerald : G.glassBorder}`, background: gracePeriodDays === d ? G.emeraldDim : "transparent", color: gracePeriodDays === d ? G.emerald : G.textDim, fontSize: 12, cursor: "pointer", fontWeight: gracePeriodDays === d ? 700 : 400, transition: "all 0.2s" }}>
-                          {d === 0 ? "None" : `${d}d`}
+                          style={{ flex: 1, padding: "8px 4px", borderRadius: 10, border: `1px solid ${gracePeriodDays === d ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.07)"}`, background: gracePeriodDays === d ? "rgba(255,255,255,0.08)" : "transparent", color: gracePeriodDays === d ? "white" : "rgba(255,255,255,0.35)", fontSize: 12, cursor: "pointer", fontFamily: SF, transition: "all 0.15s" }}>
+                          {d === 0 ? "None" : `+${d}d`}
                         </button>
                       ))}
                     </div>
-                  </div>
-
-                  {error && <p style={{ fontSize: 13, color: G.danger, marginBottom: 16 }}>{error}</p>}
-
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => transition(1)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)")}
-                      onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
-                    >← Back</button>
-                    <button onClick={() => transition(3)}
-                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,1)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "white")}
-                    >Continue →</button>
                   </div>
                 </div>
               )}
 
               {/* Step 3: Authorize */}
               {step === 3 && (
-                <div>
-                  <div style={{ marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>Authorize your assets</h2>
-                    <p style={{ fontSize: 14, color: G.textMuted, lineHeight: 1.6 }}>Your funds <strong style={{ color: G.text }}>stay in your wallet</strong>. You only give Afterlife permission to move them <em>if the timer expires</em>.</p>
-                  </div>
-
-                  <Hint icon="🔐">
-                    This <strong style={{ color: "white" }}>doesn't deposit</strong> anything. It's an SPL delegate approval: Afterlife can only distribute your assets when the deadline expires. You can revoke at any time.
-                  </Hint>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+                <div style={{ width: "100%", maxWidth: 700, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 28, background: "rgba(255,255,255,0.02)", backdropFilter: "blur(20px)", padding: "32px 36px" }}>
+                  <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Authorize Assets</h3>
+                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.4)", marginBottom: 24, lineHeight: 1.6, fontFamily: SF }}>
+                    Your funds stay in your wallet. You only give Afterlife permission to move them if the timer expires.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {tokenInfos.length === 0 && (
-                      <div style={{ padding: "24px", textAlign: "center", color: G.textDim, fontSize: 14 }}>Loading assets...</div>
+                      <div style={{ padding: 24, textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 14, fontFamily: SF }}>Loading assets...</div>
                     )}
                     {tokenInfos.map(token => {
                       const key = token.mint.toBase58();
                       const isApproved = approved.has(key);
-                      const isApproving = approving === key;
+                      const isApprovingThis = approving === key;
                       const display = token.isNativeSol
                         ? `${(Number(token.balance) / LAMPORTS_PER_SOL).toFixed(4)} SOL`
                         : `${(Number(token.balance) / 10 ** token.decimals).toFixed(2)} ${token.symbol}`;
                       return (
-                        <div key={key} className="tok-btn" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "rgba(255,255,255,0.02)", border: `1px solid ${isApproved ? G.emeraldBorder : G.glassBorder}`, borderRadius: 14, transition: "all 0.2s", cursor: "default" }}>
+                        <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", border: `1px solid ${isApproved ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.07)"}`, borderRadius: 18, background: "rgba(0,0,0,0.3)", transition: "all 0.2s" }}>
                           <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                              <span style={{ fontSize: 14, fontWeight: 600 }}>{token.symbol}</span>
-                              {token.isNativeSol && (
-                                <span style={{ fontSize: 10, color: G.textDim, background: "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: 99 }}>converted to wSOL</span>
-                              )}
-                              <Tooltip text={token.isNativeSol ? "Your SOL is wrapped as wSOL (1:1). It's reversible and required for Afterlife to distribute it as an SPL token." : "Afterlife will get permission to distribute this token if the timer expires. Your funds never move right now."} />
-                            </div>
-                            <span style={{ fontSize: 12, color: G.textDim }}>{display}</span>
+                            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, fontFamily: SF }}>{token.symbol}</div>
+                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", fontFamily: SF }}>{display}</div>
                           </div>
                           <button
                             onClick={() => !isApproved && handleApprove(token)}
-                            disabled={isApproved || !!isApproving}
-                            style={{ padding: "8px 18px", borderRadius: 10, border: "none", cursor: isApproved ? "default" : "pointer", background: isApproved ? "rgba(255,255,255,0.08)" : "white", color: isApproved ? G.textMuted : "black", fontSize: 13, fontWeight: 600, transition: "all 0.2s", opacity: isApproving ? 0.6 : 1 }}
+                            disabled={isApproved || !!isApprovingThis}
+                            style={{ padding: "9px 20px", borderRadius: 99, border: "none", cursor: isApproved ? "default" : "pointer", background: isApproved ? "rgba(255,255,255,0.08)" : "white", color: isApproved ? "rgba(255,255,255,0.4)" : "black", fontSize: 13, fontWeight: 600, transition: "all 0.2s", fontFamily: SF, opacity: isApprovingThis ? 0.6 : 1 }}
                           >
-                            {isApproving ? "Signing..." : isApproved ? "✓ Done" : "Authorize"}
+                            {isApprovingThis ? "Signing..." : isApproved ? "✓ Done" : "Authorize"}
                           </button>
                         </div>
                       );
                     })}
                   </div>
-
-                  {error && <p style={{ fontSize: 13, color: G.danger, marginBottom: 16 }}>{error}</p>}
-
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => transition(2)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)")}
-                      onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
-                    >← Back</button>
-                    <button onClick={() => transition(4)}
-                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: approved.size > 0 ? "white" : "rgba(255,255,255,0.06)", color: approved.size > 0 ? "black" : "white", fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => approved.size > 0 && (e.currentTarget.style.background = "rgba(230,230,230,1)")}
-                      onMouseLeave={e => approved.size > 0 && (e.currentTarget.style.background = "white")}
-                    >
-                      {approved.size > 0 ? "Continue →" : "Skip for now →"}
-                    </button>
-                  </div>
+                  {error && <p style={{ fontSize: 13, color: "#ef4444", marginTop: 16 }}>{error}</p>}
                 </div>
               )}
 
-              {/* Step 4: Review */}
+              {/* Step 4: Deploy Protocol */}
               {step === 4 && (
-                <div>
-                  <div style={{ marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 8 }}>Review your setup</h2>
-                    <p style={{ fontSize: 14, color: G.textMuted, lineHeight: 1.6 }}>Ready to deploy your vault on Solana. Review everything before signing.</p>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-                    <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${G.glassBorder}`, borderRadius: 16, padding: "16px 18px" }}>
-                      <div style={{ fontSize: 11, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Beneficiaries</div>
-                      {rows.map((r, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: i < rows.length - 1 ? 8 : 0 }}>
-                          <span style={{ fontSize: 12, color: G.textMuted, fontFamily: "monospace" }}>{r.wallet.slice(0, 10)}...{r.wallet.slice(-6)}</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: G.emerald }}>{r.share}%</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${G.glassBorder}`, borderRadius: 16, padding: "16px 18px", display: "flex", justifyContent: "space-between" }}>
+                <div style={{ width: "100%", maxWidth: 800, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 28, background: "rgba(255,255,255,0.02)", backdropFilter: "blur(20px)", padding: "32px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+                  <div style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 24 }}>
+                    <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 24 }}>
                       <div>
-                        <div style={{ fontSize: 11, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Check-in</div>
-                        <span style={{ fontSize: 14, color: G.text, fontWeight: 600 }}>Every {intervalDays} days</span>
+                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6, fontFamily: SF }}>Total Heirs</p>
+                        <p style={{ fontSize: 28, fontWeight: 800, fontFamily: SF }}>{rows.length} Address{rows.length !== 1 ? "es" : ""}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6, fontFamily: SF }}>Ping Requirement</p>
+                        <p style={{ fontSize: 28, fontWeight: 800, color: "#4ade80", fontFamily: SF }}>Every {intervalDays} Days</p>
                       </div>
                       {gracePeriodDays > 0 && (
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 11, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Grace</div>
-                          <span style={{ fontSize: 14, color: G.text, fontWeight: 600 }}>+{gracePeriodDays} days</span>
+                        <div>
+                          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6, fontFamily: SF }}>Grace Period</p>
+                          <p style={{ fontSize: 28, fontWeight: 800, fontFamily: SF }}>+{gracePeriodDays} Days</p>
                         </div>
                       )}
                     </div>
-
-                    <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${G.glassBorder}`, borderRadius: 16, padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ fontSize: 11, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Authorized assets</div>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: approved.size > 0 ? G.emerald : G.textDim }}>{approved.size > 0 ? `${approved.size} asset${approved.size > 1 ? "s" : ""}` : "None yet"}</span>
-                    </div>
-
-                    <div style={{ display: "flex", gap: 10, padding: "12px 14px", background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.15)", borderRadius: 12 }}>
-                      <span style={{ fontSize: 14, flexShrink: 0 }}>⚡</span>
-                      <p style={{ fontSize: 12, color: "#fbbf24", lineHeight: 1.5, margin: 0 }}>
-                        Each check-in costs 0.005 SOL. Creating the vault requires a small account rent (~0.002 SOL).
+                    <div style={{ flex: 1, minWidth: 240, background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 20, padding: "28px" }}>
+                      <CheckCircle className="w-7 h-7 text-white/30 mb-5" />
+                      <h4 style={{ fontWeight: 700, fontSize: 18, marginBottom: 12, fontFamily: SF }}>Ready for Deployment</h4>
+                      <p style={{ color: "rgba(255,255,255,0.4)", lineHeight: 1.65, marginBottom: 28, fontSize: 14, fontFamily: SF }}>
+                        Once deployed, your rules are locked into the smart contract. Network fees will apply.
                       </p>
+                      <button onClick={handleDeploy} disabled={deploying}
+                        style={{ width: "100%", padding: "15px", borderRadius: 99, background: deploying ? "rgba(255,255,255,0.25)" : "white", color: "black", fontSize: 15, fontWeight: 700, border: "none", cursor: deploying ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: SF, transition: "all 0.2s" }}
+                      >
+                        {deploying && <div style={{ width: 14, height: 14, border: "2px solid rgba(0,0,0,0.2)", borderTopColor: "black", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
+                        {deploying ? "Deploying..." : "Deploy Protocol"} {!deploying && <ArrowRight className="w-5 h-5" />}
+                      </button>
                     </div>
                   </div>
-
-                  {error && <p style={{ fontSize: 13, color: G.danger, marginBottom: 16 }}>{error}</p>}
-
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => transition(3)} style={{ flex: 1, padding: "13px", borderRadius: 14, background: "transparent", border: `1px solid ${G.glassBorder}`, color: G.textMuted, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
-                      onMouseEnter={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)")}
-                      onMouseLeave={e => (e.currentTarget.style.borderColor = G.glassBorder)}
-                    >← Back</button>
-                    <button onClick={handleDeploy} disabled={deploying}
-                      style={{ flex: 2, padding: "13px", borderRadius: 14, background: deploying ? "rgba(255,255,255,0.5)" : "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: deploying ? "default" : "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                      onMouseEnter={e => !deploying && (e.currentTarget.style.background = "rgba(230,230,230,1)")}
-                      onMouseLeave={e => !deploying && (e.currentTarget.style.background = "white")}
-                    >
-                      {deploying && <div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "white", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />}
-                      {deploying ? "Deploying..." : "🚀 Launch my Afterlife"}
-                    </button>
-                  </div>
+                  {error && <p style={{ fontSize: 13, color: "#ef4444" }}>{error}</p>}
                   <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
                 </div>
               )}
 
             </div>
-          </StepCard>
-        )}
+
+            {/* Bottom nav (steps 1-3) */}
+            {step < 4 && (
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 40, gap: 12 }}>
+                <button onClick={goNext}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 28px", borderRadius: 99, background: "white", color: "black", fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: SF, transition: "all 0.2s" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,1)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "white")}
+                >
+                  {step === 3 ? "Review" : "Next"} <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
+
+      {/* Tutorial popup */}
+      <AnimatePresence>
+        {showPopup && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30, delay: 0.4 }}
+            style={{ position: "fixed", bottom: 28, right: 28, zIndex: 50, width: 340, background: "rgb(79,70,229)", borderRadius: 24, padding: "20px 22px", boxShadow: "0 20px 60px -15px rgba(79,70,229,0.5)", border: "1px solid rgba(165,180,252,0.25)" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ background: "rgba(255,255,255,0.18)", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "white", fontFamily: SF }}>
+                Tutorial {stepIdx + 1}/{STEPS.length}
+              </div>
+              <button onClick={() => setShowPopup(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", padding: 4 }}>
+                <SkipForward className="w-4 h-4" />
+              </button>
+            </div>
+            <p style={{ color: "white", fontSize: 15, fontWeight: 500, lineHeight: 1.55, marginBottom: 20, fontFamily: SF }}>
+              {currentStepData.popupText}
+            </p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <button onClick={() => setShowPopup(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 13, fontWeight: 500, fontFamily: SF }}>
+                Skip Tutorial
+              </button>
+              <button onClick={goNext}
+                style={{ background: "white", color: "rgb(79,70,229)", padding: "9px 20px", borderRadius: 99, fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: SF }}
+              >
+                {step === 4 ? "Finish" : "Next"} <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

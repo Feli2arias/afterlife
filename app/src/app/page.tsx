@@ -1,27 +1,28 @@
 "use client";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { motion, useScroll, useTransform, useSpring, useMotionTemplate, useMotionValue, useMotionValueEvent } from "framer-motion";
 import { Fingerprint, Lock, ShieldCheck, ArrowRight, Clock, Activity, ChevronRight } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { useRouter } from "next/navigation";
 import { getProgram, fetchVaultConfig } from "@/lib/vigil";
+import { WalletModal } from "@/components/WalletModal";
 
 // ─── Smart CTA hook ───────────────────────────────────────────────────────────
-function useSmartCta() {
+function useSmartCta(onNoWallet: () => void) {
   const { publicKey } = useWallet();
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
   const router = useRouter();
 
   return useCallback(async () => {
-    if (!publicKey || !wallet) { router.push("/setup"); return; }
+    if (!publicKey || !wallet) { onNoWallet(); return; }
     const provider = new AnchorProvider(connection, wallet, {});
     const program = getProgram(provider);
     const existing = await fetchVaultConfig(program, publicKey);
     router.push(existing ? "/dashboard" : "/setup");
-  }, [publicKey, wallet, connection, router]);
+  }, [publicKey, wallet, connection, router, onNoWallet]);
 }
 
 // ─── Components ───────────────────────────────────────────────────────────────
@@ -415,7 +416,7 @@ const Footer = () => (
     <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
       <div className="text-white font-semibold tracking-tight flex items-center gap-2">
         <AfterlifeLogo className="w-6 h-6" />
-        VIGIL
+        Afterlife
       </div>
       <div className="flex gap-8 text-[13px] text-[#666] font-medium tracking-wide uppercase">
         <span className="hover:text-white transition-colors cursor-default">Solana Devnet</span>
@@ -429,7 +430,8 @@ const Footer = () => (
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const handleLaunch = useSmartCta();
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const handleLaunch = useSmartCta(() => setShowWalletModal(true));
 
   return (
     <div className="min-h-screen bg-[#030303] text-white selection:bg-white/20 relative">
@@ -452,6 +454,8 @@ export default function HomePage() {
       <ArchitectureSection onLaunch={handleLaunch} />
       <FinalSection onLaunch={handleLaunch} />
       <Footer />
+
+      {showWalletModal && <WalletModal onClose={() => setShowWalletModal(false)} />}
     </div>
   );
 }
