@@ -70,10 +70,10 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
         const provider = new AnchorProvider(connection, wallet, {});
         const program = getProgram(provider);
         const data = await fetchVaultConfig(program, ownerPk);
-        if (!data) { setError("No se encontró un Vigil para esta dirección."); return; }
+        if (!data) { setError("No Vigil vault found for this address."); return; }
         setVault(data as VaultData);
       } catch {
-        setError("Dirección inválida.");
+        setError("Invalid address.");
       } finally {
         setLoading(false);
       }
@@ -118,10 +118,8 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
   return (
     <div style={{ minHeight: "100vh", background: G.bg, color: G.text, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif", position: "relative" }}>
 
-      {/* Noise */}
       <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
 
-      {/* Ambient */}
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
         <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.02) 0%, transparent 65%)", top: "-10%", left: "0", animation: "blob1 18s ease-in-out infinite" }} />
       </div>
@@ -134,13 +132,13 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
           <div style={{ width: 52, height: 52, margin: "0 auto 16px", borderRadius: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <img src="/logo.png" alt="Vigil" style={{ width: 30, height: 30, objectFit: "contain" }} />
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 6 }}>Vigil — Reclamar activos</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 6 }}>Vigil — Claim Assets</h1>
           <p style={{ fontSize: 12, color: G.textDim, fontFamily: "monospace" }}>
             {ownerParam.slice(0, 8)}...{ownerParam.slice(-6)}
           </p>
         </div>
 
-        {loading && <p style={{ textAlign: "center", color: G.textDim, fontSize: 14 }}>Cargando...</p>}
+        {loading && <p style={{ textAlign: "center", color: G.textDim, fontSize: 14 }}>Loading...</p>}
 
         {error && (
           <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 16, padding: "16px", color: G.danger, fontSize: 14, textAlign: "center" }}>
@@ -153,14 +151,14 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
             {/* Status */}
             <div className="liquid-glass" style={{ borderRadius: 20, padding: "16px 20px", textAlign: "center" }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: isExpired ? G.emerald : "#f59e0b" }}>
-                {isExpired ? "✓ Distribución activada" : "⏳ Vigil activo — aún no distribuible"}
+                {isExpired ? "✓ Distribution activated" : "⏳ Vault active — not yet distributable"}
               </div>
-              {!isExpired && <p style={{ fontSize: 12, color: G.textDim, marginTop: 4 }}>El titular todavía está activo.</p>}
+              {!isExpired && <p style={{ fontSize: 12, color: G.textDim, marginTop: 4 }}>The owner is still active.</p>}
             </div>
 
             {/* Distribution */}
             <div className="liquid-glass" style={{ borderRadius: 20, padding: "20px" }}>
-              <h3 style={{ fontSize: 12, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Distribución</h3>
+              <h3 style={{ fontSize: 12, color: G.textDim, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Distribution</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {vault.beneficiaries.map((b, i) => {
                   const isMe = publicKey && b.wallet.toBase58() === publicKey.toBase58();
@@ -168,7 +166,7 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
                     <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 12, background: isMe ? G.emeraldDim : "rgba(255,255,255,0.02)", border: `1px solid ${isMe ? G.emeraldBorder : G.glassBorder}` }}>
                       <span style={{ fontSize: 12, fontFamily: "monospace", color: isMe ? "white" : G.textMuted }}>
                         {b.wallet.toBase58().slice(0, 8)}...{b.wallet.toBase58().slice(-4)}
-                        {isMe && <span style={{ marginLeft: 8, fontSize: 11, color: G.emerald }}> ← vos</span>}
+                        {isMe && <span style={{ marginLeft: 8, fontSize: 11, color: G.emerald }}> ← you</span>}
                       </span>
                       <div style={{ textAlign: "right" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: isMe ? G.emerald : G.text }}>{b.shareBps / 100}%</div>
@@ -183,22 +181,22 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
             {/* Wallet / Claim */}
             {!publicKey ? (
               <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
-                <p style={{ fontSize: 14, color: G.textMuted }}>Conectá tu wallet para ver si sos beneficiario</p>
+                <p style={{ fontSize: 14, color: G.textMuted }}>Connect your wallet to check if you're a beneficiary</p>
                 <WalletMultiButton />
               </div>
             ) : myShare ? (
               <>
                 <div style={{ background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, borderRadius: 16, padding: "16px 20px", textAlign: "center" }}>
-                  <p style={{ color: "white", fontWeight: 600, fontSize: 14 }}>Sos beneficiario</p>
+                  <p style={{ color: "white", fontWeight: 600, fontSize: 14 }}>You are a beneficiary</p>
                   <p style={{ fontSize: 13, color: G.textMuted, marginTop: 4 }}>
-                    Te corresponde el {myShare.shareBps / 100}% ≈ {((solBalance * myShare.shareBps) / 10_000).toFixed(4)} SOL
+                    You're entitled to {myShare.shareBps / 100}% ≈ {((solBalance * myShare.shareBps) / 10_000).toFixed(4)} SOL
                   </p>
                 </div>
 
                 {isExpired && hasWsol && !claimed && (
                   <div className="liquid-glass" style={{ borderRadius: 20, padding: "20px", display: "flex", flexDirection: "column", gap: 12 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                      <span style={{ color: G.textMuted }}>wSOL disponible</span>
+                      <span style={{ color: G.textMuted }}>Available wSOL</span>
                       <span style={{ fontWeight: 600, color: G.emerald }}>{(Number(wsolBalance) / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
                     </div>
                     <button
@@ -206,21 +204,21 @@ function ClaimContent({ params }: { params: Promise<{ owner: string }> }) {
                       disabled={claiming}
                       style={{ width: "100%", padding: "13px", borderRadius: 14, background: claiming ? "rgba(255,255,255,0.4)" : "white", color: "black", fontSize: 14, fontWeight: 700, border: "none", cursor: claiming ? "default" : "pointer", transition: "all 0.2s", opacity: claiming ? 0.7 : 1 }}
                     >
-                      {claiming ? "Procesando..." : "Reclamar SOL"}
+                      {claiming ? "Processing..." : "Claim SOL"}
                     </button>
-                    <p style={{ fontSize: 12, color: G.textDim, textAlign: "center" }}>Convierte tu wSOL a SOL nativo</p>
+                    <p style={{ fontSize: 12, color: G.textDim, textAlign: "center" }}>Converts your wSOL to native SOL</p>
                   </div>
                 )}
 
                 {(claimed || (isExpired && !hasWsol && myShare)) && (
                   <div style={{ background: G.emeraldDim, border: `1px solid ${G.emeraldBorder}`, borderRadius: 16, padding: "16px", textAlign: "center", fontSize: 14, color: "white" }}>
-                    {claimed ? "✓ SOL reclamado exitosamente" : "Los activos fueron distribuidos a tu wallet."}
+                    {claimed ? "✓ SOL successfully claimed" : "Assets have been distributed to your wallet."}
                   </div>
                 )}
               </>
             ) : (
               <p style={{ textAlign: "center", fontSize: 14, color: G.textDim }}>
-                Tu wallet no figura como beneficiaria de este Vigil.
+                Your wallet is not listed as a beneficiary of this Vigil.
               </p>
             )}
           </>
