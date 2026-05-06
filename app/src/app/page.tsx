@@ -236,7 +236,7 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
 
       <div className="relative z-0"><FluidAmbientGlow /></div>
 
-      <div className="max-w-7xl w-full mx-auto relative z-10 flex pt-16 md:pt-20">
+      <div className="max-w-7xl w-full mx-auto relative z-10 flex pt-10 md:pt-14">
         <motion.div style={{ opacity, y: yText }} className="flex flex-col items-start text-left space-y-8 max-w-2xl">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
