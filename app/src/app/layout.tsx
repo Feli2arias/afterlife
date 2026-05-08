@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import { SolanaWalletProvider } from "@/components/WalletProvider";
+import ClientProviders from "@/components/ClientProviders";
 import PreviewBar from "@/components/PreviewBar";
 
 const geist = Geist({ subsets: ["latin"] });
@@ -15,10 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${geist.className} bg-[#0a0a0a] text-white`}>
-        <SolanaWalletProvider>
+        <ClientProviders>
           {children}
           <PreviewBar />
-        </SolanaWalletProvider>
+        </ClientProviders>
       </body>
     </html>
   );

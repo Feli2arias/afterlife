@@ -5,7 +5,7 @@ import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapte
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { getProgram, registerVault, fetchVaultConfig, BeneficiaryInput } from "@/lib/vigil";
+import { getProgram, registerVault, cancelVault, fetchVaultConfig, BeneficiaryInput } from "@/lib/vigil";
 import { getUserTokenAccounts, wrapAndApproveSOL, approveDelegateForToken } from "@/lib/delegate";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -89,7 +89,7 @@ function SetupContent() {
   const [phase, setPhase] = useState(isDemo ? 1 : 0);
 
   // Step 1: beneficiaries
-  const [rows, setRows] = useState([{ wallet: "", label: "", share: 100 }]);
+  const [rows, setRows] = useState([{ email: "", name: "", share: 100 }]);
   const [rowErrors, setRowErrors] = useState<string[]>([]);
 
   // Step 2: life check interval
@@ -123,27 +123,29 @@ function SetupContent() {
 
   const effectiveInterval = intervalDays ?? (customDays ? parseInt(customDays) : 0);
   const totalShare = rows.reduce((s, r) => s + Number(r.share || 0), 0);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
 
   // ── Validation ───────────────────────────────────────────────────────────────
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
   function validateStep1(): boolean {
     const errs: string[] = rows.map(() => "");
     let ok = true;
 
-    if (isDemo) return true;
-
-    for (let i = 0; i < rows.length; i++) {
-      if (!rows[i].wallet.trim()) {
-        errs[i] = "Wallet address is required";
-        ok = false;
-        continue;
+    if (!isDemo) {
+      for (let i = 0; i < rows.length; i++) {
+        if (!rows[i].email.trim()) {
+          errs[i] = "Email address is required";
+          ok = false;
+        } else if (!EMAIL_RE.test(rows[i].email.trim())) {
+          errs[i] = "Enter a valid email (e.g. name@example.com)";
+          ok = false;
+        }
       }
-      try { new PublicKey(rows[i].wallet.trim()); }
-      catch { errs[i] = "Invalid Solana wallet address"; ok = false; }
     }
 
     if (Math.abs(totalShare - 100) > 0.01) {
-      // attach error to last row
       errs[errs.length - 1] = (errs[errs.length - 1] ? errs[errs.length - 1] + " · " : "") + "Percentages must total exactly 100%";
       ok = false;
     }
@@ -212,11 +214,17 @@ function SetupContent() {
     try {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
+      const existing = await fetchVaultConfig(program, publicKey);
+      if (existing) await cancelVault(program, publicKey);
       const bens: BeneficiaryInput[] = rows.map(r => ({
-        wallet: new PublicKey(r.wallet.trim()),
+        wallet: publicKey, // email-based — real wallet resolution TBD
         shareBps: Math.round(r.share * 100),
       }));
       await registerVault(program, publicKey, bens, effectiveInterval, gracePeriodDays);
+      sessionStorage.setItem(
+        `afterlife_heirs_${publicKey.toBase58()}`,
+        JSON.stringify(rows.map(r => ({ email: r.email.trim(), name: r.name.trim(), share: r.share })))
+      );
       router.push("/dashboard");
     } catch (e: unknown) {
       setDeployError(e instanceof Error ? e.message : "Deployment failed. Please try again.");
@@ -351,7 +359,7 @@ function SetupContent() {
                   <AnimatePresence>
                     {hints.step1 && (
                       <HintCard
-                        text="Each heir needs a Solana wallet address. You can add up to 5 recipients and split any way you like — the total must equal 100%."
+                        text="Enter each heir's email address. You can add up to 5 recipients and split the inheritance any way you like — the total must equal 100%."
                         onDismiss={() => setHints(h => ({ ...h, step1: false }))}
                       />
                     )}
@@ -373,17 +381,16 @@ function SetupContent() {
 
                         <div className="flex gap-3 items-start">
                           <div className="flex-1 min-w-0">
-                            <label className="text-xs text-white/30 mb-1.5 block">Wallet Address</label>
+                            <label className="text-xs text-white/30 mb-1.5 block">Email Address</label>
                             <input
-                              type="text"
-                              placeholder="Solana wallet address"
-                              value={row.wallet}
+                              type="email"
+                              placeholder="heir@example.com"
+                              value={row.email}
                               onChange={e => {
-                                setRows(prev => prev.map((r, idx) => idx === i ? { ...r, wallet: e.target.value } : r));
-                                if (rowErrors[i]) setRowErrors(prev => prev.map((e, idx) => idx === i ? "" : e));
+                                setRows(prev => prev.map((r, idx) => idx === i ? { ...r, email: e.target.value } : r));
+                                if (rowErrors[i]) setRowErrors(prev => prev.map((err, idx) => idx === i ? "" : err));
                               }}
-                              className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-white/15 focus:outline-none focus:border-white/25 transition-colors"
-                              style={{ fontFamily: MONO }}
+                              className={`w-full bg-white/[0.03] border rounded-xl px-4 py-3 text-sm text-white placeholder-white/15 focus:outline-none transition-colors ${rowErrors[i] ? "border-red-500/40 focus:border-red-500/60" : "border-white/8 focus:border-white/25"}`}
                             />
                           </div>
                           <div className="w-20 flex-shrink-0">
@@ -401,12 +408,12 @@ function SetupContent() {
                         </div>
 
                         <div className="mt-3">
-                          <label className="text-xs text-white/30 mb-1.5 block">Name or email <span className="text-white/15">(optional)</span></label>
+                          <label className="text-xs text-white/30 mb-1.5 block">Name <span className="text-white/15">(optional)</span></label>
                           <input
                             type="text"
-                            placeholder="e.g. Sarah, mom@email.com"
-                            value={row.label}
-                            onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, label: e.target.value } : r))}
+                            placeholder="e.g. Mom, Sarah, Brother"
+                            value={row.name}
+                            onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, name: e.target.value } : r))}
                             className="w-full bg-white/[0.03] border border-white/8 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/15 focus:outline-none focus:border-white/25 transition-colors"
                           />
                         </div>
@@ -418,7 +425,7 @@ function SetupContent() {
 
                   <div className="flex items-center justify-between mb-8">
                     <button
-                      onClick={() => rows.length < 5 && setRows(prev => [...prev, { wallet: "", label: "", share: 0 }])}
+                      onClick={() => rows.length < 5 && setRows(prev => [...prev, { email: "", name: "", share: 0 }])}
                       disabled={rows.length >= 5}
                       className="flex items-center gap-2 text-sm text-white/40 hover:text-white/70 transition-colors disabled:opacity-30 disabled:cursor-default"
                     >
@@ -607,10 +614,10 @@ function SetupContent() {
                         {rows.map((r, i) => (
                           <div key={i} className="flex items-center justify-between">
                             <div>
-                              <span className="text-sm font-mono text-white/60" style={{ fontFamily: MONO }}>
-                                {isDemo ? r.wallet || `Heir ${i + 1}` : `${r.wallet.slice(0, 8)}...${r.wallet.slice(-4)}`}
+                              <span className="text-sm text-white/60">
+                                {r.email || `Heir ${i + 1}`}
                               </span>
-                              {r.label && <span className="ml-2 text-xs text-white/25">{r.label}</span>}
+                              {r.name && <span className="ml-2 text-xs text-white/25">{r.name}</span>}
                             </div>
                             <span className="text-sm font-bold text-white/80">{r.share}%</span>
                           </div>
@@ -642,8 +649,8 @@ function SetupContent() {
                       </div>
                     )}
 
-                    {/* Authorize assets */}
-                    {!isDemo && tokenInfos.length > 0 && (
+                    {/* Authorize assets — only show when there are actual funds */}
+                    {!isDemo && tokenInfos.some(t => Number(t.balance) > 0) && (
                       <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
                         <div className="mb-4">
                           <span className="text-xs text-white/30 uppercase tracking-widest block mb-1">Secure Transfer Authorization</span>

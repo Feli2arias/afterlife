@@ -165,8 +165,12 @@ function DashboardContent() {
   const [saving, setSaving] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simMsg, setSimMsg] = useState("");
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [demoCountdownEnd, setDemoCountdownEnd] = useState<number | null>(null);
+  const [autoExecuting, setAutoExecuting] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [heirEmails, setHeirEmails] = useState<{ email: string; name: string; share: number }[]>([]);
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 1_000);
@@ -186,7 +190,49 @@ function DashboardContent() {
     setLoading(false);
   }, [publicKey, wallet, connection, router, isDemo]);
 
-  useEffect(() => { loadVault(); }, [loadVault]);
+  useEffect(() => {
+    loadVault();
+    if (!isDemo && publicKey) {
+      const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setHeirEmails(parsed);
+      }
+    }
+  }, [loadVault, isDemo, publicKey]);
+
+  // Auto-execute protocol when 1-min demo countdown reaches zero
+  useEffect(() => {
+    if (!demoCountdownEnd || autoExecuting || !publicKey || !wallet) return;
+    if (Date.now() < demoCountdownEnd) return;
+    setAutoExecuting(true);
+    (async () => {
+      try {
+        const provider = new AnchorProvider(connection, wallet, {});
+        const program = getProgram(provider);
+        await forceExpire(program, publicKey);
+        await executeDistribution(program, publicKey, publicKey);
+        setDemoCountdownEnd(null);
+        await loadVault();
+        // Send emails to heirs
+        const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
+        if (stored) {
+          const heirs: { email: string; name: string; share: number }[] = JSON.parse(stored);
+          const origin = window.location.origin;
+          const claimUrl = `${origin}/claim/${publicKey.toBase58()}`;
+          await Promise.allSettled(heirs.map(h =>
+            fetch("/api/send-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ to: h.email, name: h.name, share: h.share, ownerAddress: publicKey.toBase58(), claimUrl }),
+            })
+          ));
+          setEmailSent(true);
+        }
+      } catch (e) { console.error(e); }
+      finally { setAutoExecuting(false); }
+    })();
+  }, [tick, demoCountdownEnd, autoExecuting, publicKey, wallet, connection, loadVault]);
 
   async function handleCheckin() {
     if (isDemo) {
@@ -284,7 +330,12 @@ function DashboardContent() {
 
   if (!vault) return null;
 
-  const t = timeRemaining(vault.lastCheckin.toNumber(), vault.intervalDays, vault.gracePeriodDays);
+  const t = demoCountdownEnd
+    ? (() => {
+        const rem = Math.max(0, Math.floor((demoCountdownEnd - Date.now()) / 1000));
+        return { expired: rem === 0, d: 0, h: 0, m: Math.floor(rem / 60), s: rem % 60 };
+      })()
+    : timeRemaining(vault.lastCheckin.toNumber(), vault.intervalDays, vault.gracePeriodDays);
   const ownerAddr = isDemo ? "Demo1111111111111111111111111111111111111111" : publicKey?.toBase58() ?? "";
   const shortAddr = `${ownerAddr.slice(0, 6)}...${ownerAddr.slice(-4)}`;
   const claimUrl = typeof window !== "undefined" ? `${window.location.origin}/claim/${ownerAddr}` : "";
@@ -422,6 +473,27 @@ function DashboardContent() {
                   </motion.button>
                 )}
 
+                {vault.isActive && !isDemo && !demoCountdownEnd && (
+                  <button
+                    onClick={() => setDemoCountdownEnd(Date.now() + 60_000)}
+                    className="mt-6 text-xs text-white/15 hover:text-white/40 transition-colors underline decoration-white/10 underline-offset-4"
+                  >
+                    Set timer to 1 min (test)
+                  </button>
+                )}
+
+                {demoCountdownEnd && (
+                  <p className="mt-6 text-xs text-amber-400/60 animate-pulse">
+                    {autoExecuting ? "Executing protocol..." : "Protocol executes in less than 1 minute..."}
+                  </p>
+                )}
+
+                {emailSent && (
+                  <p className="mt-4 text-xs text-green-400/60">
+                    ✓ Heir notified by email
+                  </p>
+                )}
+
                 {!vault.isActive && (
                   <div className="text-center">
                     <p className="text-red-400 font-semibold text-lg mb-2">Distribution executed</p>
@@ -471,8 +543,8 @@ function DashboardContent() {
                             0{idx + 1}
                           </div>
                           <div>
-                            <p className="text-white font-mono text-lg" style={{ fontFamily: MONO }}>
-                              {b.wallet.toBase58().slice(0, 6)}...{b.wallet.toBase58().slice(-4)}
+                            <p className="text-white text-lg" style={{ fontFamily: heirEmails[idx]?.email ? undefined : MONO }}>
+                              {heirEmails[idx]?.email || `${b.wallet.toBase58().slice(0, 6)}...${b.wallet.toBase58().slice(-4)}`}
                             </p>
                             <p className="text-sm text-[#666] tracking-widest mt-1 uppercase font-semibold">
                               ~{(solBal * b.shareBps / 10_000).toFixed(3)} SOL
