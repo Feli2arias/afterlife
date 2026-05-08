@@ -4,8 +4,8 @@ import { useSearchParams } from "next/navigation";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { PublicKey, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
-import { getAssociatedTokenAddress, createCloseAccountInstruction, NATIVE_MINT, getAccount } from "@solana/spl-token";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { getAssociatedTokenAddress, NATIVE_MINT, getAccount } from "@solana/spl-token";
 import { getProgram, fetchVaultConfig } from "@/lib/vigil";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
@@ -125,14 +125,13 @@ function ClaimContent({
   const isDemo = searchParams.get("demo") === "1" || ownerParam === "DEMO";
 
   // Solana wallet adapter (Phantom)
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey } = useWallet();
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
 
   const [vault, setVault] = useState<VaultData | null>(isDemo ? DEMO_VAULT : null);
   const [loading, setLoading] = useState(!isDemo);
-  const [solBalance, setSolBalance] = useState<number>(isDemo ? 4.237 : 0);
-  const [wsolBalance, setWsolBalance] = useState<bigint>(isDemo ? BigInt(2_100_000_000) : 0n);
+  const [ownerWsol, setOwnerWsol] = useState<number>(isDemo ? 2.1 : 0);
   const [claiming, setClaiming] = useState(false);
   const [screen, setScreen] = useState<Screen>("landing");
   const [walletPath, setWalletPath] = useState<WalletPath>("phantom");
@@ -142,8 +141,12 @@ function ClaimContent({
     async function load() {
       try {
         const ownerPk = new PublicKey(ownerParam);
-        const bal = await connection.getBalance(ownerPk);
-        setSolBalance(bal / LAMPORTS_PER_SOL);
+        // Read owner's wSOL ATA — this is the delegated amount
+        try {
+          const wsolAta = await getAssociatedTokenAddress(NATIVE_MINT, ownerPk);
+          const wsolAcc = await getAccount(connection, wsolAta);
+          setOwnerWsol(Number(wsolAcc.amount) / LAMPORTS_PER_SOL);
+        } catch { /* owner has no wSOL ATA yet */ }
         if (!wallet) return;
         const provider = new AnchorProvider(connection, wallet, {});
         const program = getProgram(provider);
@@ -155,15 +158,6 @@ function ClaimContent({
     load();
   }, [ownerParam, wallet, connection, isDemo]);
 
-  // wSOL balance for Phantom path
-  useEffect(() => {
-    if (!publicKey) return;
-    getAssociatedTokenAddress(NATIVE_MINT, publicKey)
-      .then(ata => getAccount(connection, ata))
-      .then(acc => setWsolBalance(acc.amount))
-      .catch(() => setWsolBalance(0n));
-  }, [publicKey, connection, screen]);
-
   // Auto-advance when Phantom wallet connects
   useEffect(() => {
     if (publicKey && screen === "has-wallet") setScreen("claiming-phantom");
@@ -174,33 +168,47 @@ function ClaimContent({
     if (privyAuthenticated && screen === "no-wallet") setScreen("claiming-privy");
   }, [privyAuthenticated, screen]);
 
-  async function claimWithPhantom() {
-    if (!publicKey || !signTransaction) return;
+  const [claimError, setClaimError] = useState<string | null>(null);
+
+  async function executeClaim(heirAddress: string) {
     setClaiming(true);
+    setClaimError(null);
     try {
-      const wsolAta = await getAssociatedTokenAddress(NATIVE_MINT, publicKey);
-      const tx = new Transaction().add(createCloseAccountInstruction(wsolAta, publicKey, publicKey));
-      const { blockhash } = await connection.getLatestBlockhash();
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = publicKey;
-      const signed = await signTransaction(tx);
-      await connection.sendRawTransaction(signed.serialize());
+      const res = await fetch("/api/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ownerAddress: ownerParam,
+          heirAddress,
+          shareBps: displayShare,
+        }),
+      });
+      const data = await res.json().catch(() => ({ error: "Invalid response" }));
+      if (!res.ok) throw new Error(data.error ?? "Claim failed");
       setScreen("claimed");
-    } catch (e) { console.error(e); }
-    finally { setClaiming(false); }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setClaimError(msg);
+      console.error("[claim]", msg);
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  async function claimWithPhantom() {
+    if (!publicKey) return;
+    await executeClaim(publicKey.toBase58());
   }
 
   async function claimWithPrivy() {
-    setClaiming(true);
-    await new Promise(r => setTimeout(r, 1800));
-    setClaiming(false);
-    setScreen("claimed");
+    if (!privyWalletAddress) return;
+    await executeClaim(privyWalletAddress);
   }
 
-  const displayShare = vault?.beneficiaries[0]?.shareBps ?? 5000;
-  const displaySol = ((solBalance * displayShare) / 10_000).toFixed(3);
-  const claimableSOL = (Number(wsolBalance) / LAMPORTS_PER_SOL).toFixed(4);
-  const hasWsol = wsolBalance > 0n;
+  const heirIdxRaw = parseInt(searchParams.get("heir") ?? "0", 10);
+  const heirIdx = Number.isFinite(heirIdxRaw) && heirIdxRaw >= 0 ? heirIdxRaw : 0;
+  const displayShare = vault?.beneficiaries[heirIdx]?.shareBps ?? 0;
+  const displaySol = ((ownerWsol * displayShare) / 10_000).toFixed(3);
 
   const activeAddress = walletPath === "privy"
     ? privyWalletAddress
@@ -377,11 +385,10 @@ function ClaimContent({
               <ClaimCard
                 address={publicKey?.toBase58() ?? ""}
                 displaySol={displaySol}
-                claimableSOL={claimableSOL}
-                hasWsol={hasWsol}
                 displayShare={displayShare}
                 ownerParam={ownerParam}
                 claiming={claiming}
+                error={claimError}
                 onClaim={claimWithPhantom}
                 onDisconnect={() => setScreen("choice")}
                 walletLabel="Phantom"
@@ -393,11 +400,10 @@ function ClaimContent({
               <ClaimCard
                 address={privyWalletAddress ?? ""}
                 displaySol={displaySol}
-                claimableSOL={claimableSOL}
-                hasWsol={hasWsol}
                 displayShare={displayShare}
                 ownerParam={ownerParam}
                 claiming={claiming}
+                error={claimError}
                 onClaim={claimWithPrivy}
                 onDisconnect={() => { privyLogout(); setScreen("choice"); }}
                 walletLabel="Email wallet"
@@ -408,7 +414,7 @@ function ClaimContent({
             {/* ── CLAIMED ──────────────────────────────────────────────── */}
             {screen === "claimed" && (
               <ClaimedScreen
-                amount={hasWsol ? claimableSOL : displaySol}
+                amount={displaySol}
                 address={activeAddress ?? ""}
                 walletPath={walletPath}
                 privyEmail={privyEmail ?? undefined}
@@ -589,16 +595,15 @@ function NextStep({ num, title, desc, link }: { num: string; title: string; desc
 // ── Shared claim card ──────────────────────────────────────────────────────────
 
 function ClaimCard({
-  address, displaySol, claimableSOL, hasWsol, displayShare,
-  ownerParam, claiming, onClaim, onDisconnect, walletLabel, privyEmail,
+  address, displaySol, displayShare,
+  ownerParam, claiming, error, onClaim, onDisconnect, walletLabel, privyEmail,
 }: {
   address: string;
   displaySol: string;
-  claimableSOL: string;
-  hasWsol: boolean;
   displayShare: number;
   ownerParam: string;
   claiming: boolean;
+  error: string | null;
   onClaim: () => void;
   onDisconnect: () => void;
   walletLabel: string;
@@ -622,7 +627,7 @@ function ClaimCard({
           <div>
             <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.2)", fontFamily: SF }}>Available to claim</p>
             <p style={{ margin: 0, fontSize: 36, fontWeight: 700, letterSpacing: "-0.03em", color: "white", fontFamily: SF }}>
-              {hasWsol ? claimableSOL : displaySol}
+              {displaySol}
               <span style={{ fontSize: 16, fontWeight: 400, color: "rgba(255,255,255,0.3)", marginLeft: 6 }}>SOL</span>
             </p>
           </div>
@@ -635,6 +640,12 @@ function ClaimCard({
           <Row label="Contract" value={`${ownerParam.slice(0, 6)}...${ownerParam.slice(-4)}`} mono />
         </div>
 
+        {error && (
+          <p style={{ textAlign: "center", fontSize: 12, color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontFamily: SF }}>
+            {error}
+          </p>
+        )}
+
         <button
           onClick={onClaim}
           disabled={claiming}
@@ -645,7 +656,7 @@ function ClaimCard({
       </div>
 
       <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.15)", lineHeight: 1.6, margin: "0 0 8px", fontFamily: SF }}>
-        Network fee: ~0.000005 SOL
+        No signature required — transaction processed by Vigil keeper
       </p>
       <div style={{ textAlign: "center" }}>
         <button onClick={onDisconnect} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.15)", fontSize: 12, cursor: "pointer", fontFamily: SF }}>

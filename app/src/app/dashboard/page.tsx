@@ -4,6 +4,7 @@ import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapte
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { getAssociatedTokenAddress, getAccount, NATIVE_MINT } from "@solana/spl-token";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity, Users, Settings, ShieldAlert, ArrowUpRight,
@@ -185,8 +186,14 @@ function DashboardContent() {
     const data = await fetchVaultConfig(program, publicKey);
     if (!data) { router.push("/setup"); return; }
     setVault(data as unknown as VaultData);
-    const bal = await connection.getBalance(publicKey);
-    setSolBal(bal / LAMPORTS_PER_SOL);
+    try {
+      const wsolAta = await getAssociatedTokenAddress(NATIVE_MINT, publicKey);
+      const wsolAcc = await getAccount(connection, wsolAta);
+      setSolBal(Number(wsolAcc.amount) / LAMPORTS_PER_SOL);
+    } catch {
+      const bal = await connection.getBalance(publicKey);
+      setSolBal(bal / LAMPORTS_PER_SOL);
+    }
     setLoading(false);
   }, [publicKey, wallet, connection, router, isDemo]);
 
@@ -219,12 +226,15 @@ function DashboardContent() {
         if (stored) {
           const heirs: { email: string; name: string; share: number }[] = JSON.parse(stored);
           const origin = window.location.origin;
-          const claimUrl = `${origin}/claim/${publicKey.toBase58()}`;
-          await Promise.allSettled(heirs.map(h =>
+          await Promise.allSettled(heirs.map((h, idx) =>
             fetch("/api/send-email", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ to: h.email, name: h.name, share: h.share, ownerAddress: publicKey.toBase58(), claimUrl }),
+              body: JSON.stringify({
+                to: h.email, name: h.name, share: h.share,
+                ownerAddress: publicKey.toBase58(),
+                claimUrl: `${origin}/claim/${publicKey.toBase58()}?heir=${idx}`,
+              }),
             })
           ));
           setEmailSent(true);
@@ -536,36 +546,50 @@ function DashboardContent() {
                   </div>
 
                   <div className="space-y-6">
-                    {vault.beneficiaries.map((b, idx) => (
-                      <div key={idx} className="flex flex-col md:flex-row justify-between md:items-center p-6 rounded-2xl bg-[#080808] border border-white/5 hover:border-white/20 transition-all hover:bg-white/[0.02] gap-6">
-                        <div className="flex items-center gap-6">
-                          <div className="w-14 h-14 rounded-full border border-white/10 bg-white/5 flex items-center justify-center font-mono text-[#888]" style={{ fontFamily: MONO }}>
-                            0{idx + 1}
+                    {vault.beneficiaries.map((b, idx) => {
+                      const heirClaimUrl = typeof window !== "undefined"
+                        ? `${window.location.origin}/claim/${ownerAddr}?heir=${idx}`
+                        : "";
+                      return (
+                        <div key={idx} className="flex flex-col md:flex-row justify-between md:items-center p-6 rounded-2xl bg-[#080808] border border-white/5 hover:border-white/20 transition-all hover:bg-white/[0.02] gap-6">
+                          <div className="flex items-center gap-6">
+                            <div className="w-14 h-14 rounded-full border border-white/10 bg-white/5 flex items-center justify-center font-mono text-[#888]" style={{ fontFamily: MONO }}>
+                              0{idx + 1}
+                            </div>
+                            <div>
+                              <p className="text-white text-lg" style={{ fontFamily: heirEmails[idx]?.email ? undefined : MONO }}>
+                                {heirEmails[idx]?.email || `${b.wallet.toBase58().slice(0, 6)}...${b.wallet.toBase58().slice(-4)}`}
+                              </p>
+                              <p className="text-sm text-[#666] tracking-widest mt-1 uppercase font-semibold">
+                                ~{(solBal * b.shareBps / 10_000).toFixed(3)} SOL
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-white text-lg" style={{ fontFamily: heirEmails[idx]?.email ? undefined : MONO }}>
-                              {heirEmails[idx]?.email || `${b.wallet.toBase58().slice(0, 6)}...${b.wallet.toBase58().slice(-4)}`}
-                            </p>
-                            <p className="text-sm text-[#666] tracking-widest mt-1 uppercase font-semibold">
-                              ~{(solBal * b.shareBps / 10_000).toFixed(3)} SOL
-                            </p>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-[#888] text-xs uppercase tracking-widest mb-1">Allocation</p>
+                              <p className="text-3xl text-white font-bold tracking-tighter">
+                                {b.shareBps / 100}<span className="text-white/50 text-xl">%</span>
+                              </p>
+                            </div>
+                            {!isDemo && heirClaimUrl && (
+                              <button
+                                onClick={() => { navigator.clipboard.writeText(heirClaimUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                                className="flex items-center gap-1.5 text-xs border border-white/10 px-3 py-2 rounded-full hover:bg-white hover:text-black text-white/40 transition-all"
+                                title="Copy claim link for this heir"
+                              >
+                                <Copy className="w-3 h-3" /> Link
+                              </button>
+                            )}
+                            {!isDemo && (
+                              <button onClick={() => setEditBens(true)} className="w-12 h-12 flex items-center justify-center rounded-full border border-white/10 hover:bg-white hover:text-black transition-colors text-white/50">
+                                <Settings className="w-5 h-5" />
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-8">
-                          <div className="text-right">
-                            <p className="text-[#888] text-xs uppercase tracking-widest mb-1">Allocation</p>
-                            <p className="text-3xl text-white font-bold tracking-tighter">
-                              {b.shareBps / 100}<span className="text-white/50 text-xl">%</span>
-                            </p>
-                          </div>
-                          {!isDemo && (
-                            <button onClick={() => setEditBens(true)} className="w-12 h-12 flex items-center justify-center rounded-full border border-white/10 hover:bg-white hover:text-black transition-colors text-white/50">
-                              <Settings className="w-5 h-5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </motion.div>
@@ -664,15 +688,18 @@ function DashboardContent() {
 
                     {/* Claim link */}
                     <div>
-                      <h3 className="text-sm uppercase tracking-widest text-white/50 mb-3">Beneficiary Claim Link</h3>
-                      <div className="bg-[#080808] border border-white/10 rounded-xl p-4 flex gap-3 items-center">
-                        <span className="flex-1 text-sm font-mono text-white/30 overflow-hidden text-ellipsis whitespace-nowrap" style={{ fontFamily: MONO }}>{claimUrl}</span>
-                        <button
-                          onClick={() => { navigator.clipboard.writeText(claimUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                          className="text-sm border border-white/20 px-4 py-2 rounded-full hover:bg-white hover:text-black text-white/60 transition-all flex items-center gap-1.5"
-                        >
-                          <Copy className="w-3.5 h-3.5" /> {copied ? "Copied!" : "Copy"}
-                        </button>
+                      <h3 className="text-sm uppercase tracking-widest text-white/50 mb-3">Beneficiary Claim Links</h3>
+                      <div className="bg-[#080808] border border-white/10 rounded-xl p-4">
+                        <p className="text-xs text-white/30 mb-3">Each heir gets a personalized link. Copy individual links from the Beneficiaries tab.</p>
+                        <div className="flex gap-3 items-center">
+                          <span className="flex-1 text-sm font-mono text-white/20 overflow-hidden text-ellipsis whitespace-nowrap" style={{ fontFamily: MONO }}>{claimUrl}?heir=0</span>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(claimUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                            className="text-sm border border-white/20 px-4 py-2 rounded-full hover:bg-white hover:text-black text-white/60 transition-all flex items-center gap-1.5"
+                          >
+                            <Copy className="w-3.5 h-3.5" /> {copied ? "Copied!" : "Base URL"}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
