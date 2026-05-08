@@ -119,20 +119,36 @@ export async function getUserTokenAccounts(
 
   const tokens: TokenInfo[] = [];
 
-  // SOL nativo primero (como wSOL)
-  if (solBalance > 0) {
-    // Reservar ~0.05 SOL para fees, el resto es protegible
-    const protectable = BigInt(Math.max(0, solBalance - 50_000_000));
+  // Check if there's already a wSOL ATA with balance (user already wrapped)
+  const wsolAccount = splAccounts.value.find(
+    a => a.account.data.parsed.info.mint === WSOL_MINT.toBase58()
+  );
+  const wsolBalance = wsolAccount
+    ? BigInt(wsolAccount.account.data.parsed.info.tokenAmount.amount)
+    : 0n;
+
+  if (wsolBalance > 0n) {
+    // User already has wSOL — show that amount directly, no wrap needed
+    tokens.push({
+      mint: WSOL_MINT,
+      balance: wsolBalance,
+      decimals: 9,
+      symbol: "SOL",
+      isNativeSol: false, // already wSOL, just approve
+    });
+  } else if (solBalance > 50_000_000) {
+    // No wSOL yet — offer to wrap native SOL (keep 0.05 SOL for fees)
+    const protectable = BigInt(solBalance - 50_000_000);
     tokens.push({
       mint: WSOL_MINT,
       balance: protectable,
       decimals: 9,
       symbol: "SOL",
-      isNativeSol: true,
+      isNativeSol: true, // needs wrapping first
     });
   }
 
-  // SPL tokens con balance > 0 (excluyendo wSOL ya contado)
+  // SPL tokens con balance > 0 (excluyendo wSOL ya manejado)
   const splTokens = splAccounts.value
     .filter(a => {
       const info = a.account.data.parsed.info;
