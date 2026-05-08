@@ -5,7 +5,7 @@ import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapte
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { getProgram, registerVault, cancelVault, fetchVaultConfig, BeneficiaryInput } from "@/lib/vigil";
+import { getProgram, registerVault, cancelVault, forceCloseVault, fetchVaultConfig, vaultConfigExists, BeneficiaryInput } from "@/lib/vigil";
 import { getUserTokenAccounts, wrapAndApproveSOL, approveDelegateForToken } from "@/lib/delegate";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -210,8 +210,16 @@ function SetupContent() {
     try {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
-      const existing = await fetchVaultConfig(program, publicKey);
-      if (existing) await cancelVault(program, publicKey);
+      // Check raw account existence first (works even if deserialization fails)
+      const accountExists = await vaultConfigExists(program, publicKey);
+      if (accountExists) {
+        // Try normal cancel first; if it fails (old schema), use force_close
+        try {
+          await cancelVault(program, publicKey);
+        } catch {
+          await forceCloseVault(program, publicKey);
+        }
+      }
       const backendAuthority = new PublicKey(
         process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP"
       );

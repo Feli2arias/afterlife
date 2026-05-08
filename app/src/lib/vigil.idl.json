@@ -629,6 +629,57 @@
       "args": []
     },
     {
+      "name": "force_close",
+      "docs": [
+        "Migration: closes a vault_config that can't be deserialized (old schema).",
+        "Only the owner can call this — verified via PDA seeds."
+      ],
+      "discriminator": [
+        71,
+        1,
+        6,
+        64,
+        15,
+        200,
+        254,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "vault_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  105,
+                  103,
+                  105,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "force_expire",
       "docs": [
         "Dev/demo only: backdates last_checkin to force expiry."

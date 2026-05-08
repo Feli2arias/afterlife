@@ -10,6 +10,7 @@ pub use instructions::execute::*;
 pub use instructions::claim::*;
 pub use instructions::cancel::*;
 pub use instructions::force_expire::*;
+pub use instructions::force_close::*;
 use state::Beneficiary;
 
 declare_id!("4pKCmz43y8apgNqoAZVhYba11r5MyW6fiDnH3WGb16Uu");
@@ -56,5 +57,11 @@ pub mod vigil {
     /// Dev/demo only: backdates last_checkin to force expiry.
     pub fn force_expire(ctx: Context<ForceExpire>) -> Result<()> {
         instructions::force_expire::handler(ctx)
+    }
+
+    /// Migration: closes a vault_config that can't be deserialized (old schema).
+    /// Only the owner can call this — verified via PDA seeds.
+    pub fn force_close(ctx: Context<ForceClose>) -> Result<()> {
+        instructions::force_close::handler(ctx)
     }
 }

@@ -125,6 +125,18 @@ export async function executeDistribution(program: Program, caller: PublicKey, v
     .rpc();
 }
 
+export async function forceCloseVault(program: Program, owner: PublicKey) {
+  const [vaultConfigPda] = getVaultConfigPda(owner);
+  return program.methods
+    .forceClose()
+    .accounts({
+      vaultConfig: vaultConfigPda,
+      owner,
+      systemProgram: SystemProgram.programId,
+    })
+    .rpc();
+}
+
 export async function fetchVaultConfig(program: Program, owner: PublicKey) {
   const [vaultConfigPda] = getVaultConfigPda(owner);
   try {
@@ -133,4 +145,10 @@ export async function fetchVaultConfig(program: Program, owner: PublicKey) {
   } catch {
     return null;
   }
+}
+
+export async function vaultConfigExists(program: Program, owner: PublicKey): Promise<boolean> {
+  const [vaultConfigPda] = getVaultConfigPda(owner);
+  const info = await program.provider.connection.getAccountInfo(vaultConfigPda);
+  return info !== null && info.lamports > 0;
 }
