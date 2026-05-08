@@ -22,6 +22,7 @@ pub fn handler(
     beneficiaries: Vec<Beneficiary>,
     interval_days: u16,
     grace_period_days: u8,
+    backend_authority: Pubkey,
 ) -> Result<()> {
     require!(!beneficiaries.is_empty(), VigError::NoBeneficiaries);
     require!(beneficiaries.len() <= MAX_BENEFICIARIES, VigError::TooManyBeneficiaries);
@@ -32,13 +33,16 @@ pub fn handler(
 
     let vault = &mut ctx.accounts.vault_config;
     vault.owner = ctx.accounts.owner.key();
+    vault.backend_authority = backend_authority;
     vault.beneficiaries = beneficiaries;
     vault.interval_days = interval_days;
     vault.grace_period_days = grace_period_days;
     vault.last_checkin = Clock::get()?.unix_timestamp;
-    vault._reserved = 0;
     vault.is_active = true;
     vault.bump = ctx.bumps.vault_config;
+    vault.executed_token_mint = Pubkey::default();
+    vault.executed_total = 0;
+    vault.claimed_flags = [false; 5];
 
     Ok(())
 }
