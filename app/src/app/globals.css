@@ -22,7 +22,7 @@ body {
 
 /* Liquid Glass */
 .liquid-glass {
-  background: linear-gradient(145deg, rgba(200,200,200,0.18) 0%, rgba(200,200,200,0.08) 100%);
+  background: linear-gradient(145deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%);
   backdrop-filter: blur(50px) saturate(200%);
   -webkit-backdrop-filter: blur(50px) saturate(200%);
   border: 1px solid rgba(255,255,255,0.08);
