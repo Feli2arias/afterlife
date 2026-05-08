@@ -112,7 +112,7 @@ const Navbar = ({ onLaunch }: { onLaunch: () => void }) => {
 
   return (
     <div className="fixed top-0 inset-x-0 z-[100] flex justify-center p-4 px-6 pointer-events-none">
-      <motion.nav className={`pointer-events-auto flex justify-between items-center w-full max-w-7xl transition-all duration-500 rounded-[2rem] ${
+      <nav className={`pointer-events-auto flex justify-between items-center w-full max-w-7xl transition-all duration-500 rounded-[2rem] ${
         isScrolled ? "py-3 px-6 liquid-glass border border-white/10 shadow-2xl" : "py-4 px-2 bg-transparent mix-blend-difference"
       }`}>
         <div className="flex items-center gap-2 text-white font-semibold tracking-tight text-xl">
@@ -138,7 +138,7 @@ const Navbar = ({ onLaunch }: { onLaunch: () => void }) => {
             />
           )}
         </div>
-      </motion.nav>
+      </nav>
     </div>
   );
 };
