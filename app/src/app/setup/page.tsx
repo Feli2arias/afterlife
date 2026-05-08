@@ -121,7 +121,7 @@ function SetupContent() {
     }
   }, [phase, publicKey]); // eslint-disable-line
 
-  const effectiveInterval = intervalDays ?? (customDays ? parseInt(customDays) : 0);
+  const effectiveInterval = intervalDays ?? 0;
   const totalShare = rows.reduce((s, r) => s + Number(r.share || 0), 0);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
 
@@ -155,12 +155,8 @@ function SetupContent() {
   }
 
   function validateStep2(): boolean {
-    if (!effectiveInterval || effectiveInterval < 1) {
-      setIntervalError("Please select or enter an interval");
-      return false;
-    }
-    if (effectiveInterval > 365) {
-      setIntervalError("Maximum interval is 365 days");
+    if (!intervalDays || ![30, 60, 90].includes(intervalDays)) {
+      setIntervalError("Please select an interval");
       return false;
     }
     setIntervalError("");
@@ -216,11 +212,16 @@ function SetupContent() {
       const program = getProgram(provider);
       const existing = await fetchVaultConfig(program, publicKey);
       if (existing) await cancelVault(program, publicKey);
-      const bens: BeneficiaryInput[] = rows.map(r => ({
-        wallet: publicKey, // email-based — real wallet resolution TBD
-        shareBps: Math.round(r.share * 100),
+      const backendAuthority = new PublicKey(
+        process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP"
+      );
+      const bens: BeneficiaryInput[] = await Promise.all(rows.map(async r => {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(r.email.trim().toLowerCase());
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer.slice(0) as ArrayBuffer);
+        return { emailHash: Array.from(new Uint8Array(hashBuffer)), shareBps: Math.round(r.share * 100) };
       }));
-      await registerVault(program, publicKey, bens, effectiveInterval, gracePeriodDays);
+      await registerVault(program, publicKey, bens, effectiveInterval, gracePeriodDays, backendAuthority);
       sessionStorage.setItem(
         `afterlife_heirs_${publicKey.toBase58()}`,
         JSON.stringify(rows.map(r => ({ email: r.email.trim(), name: r.name.trim(), share: r.share })))
@@ -470,12 +471,11 @@ function SetupContent() {
                     )}
                   </AnimatePresence>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                  <div className="grid grid-cols-3 gap-3 mb-6">
                     {[
                       { days: 30, label: "30 days", sub: "Monthly" },
-                      { days: 90, label: "90 days", sub: "Quarterly", rec: true },
-                      { days: 180, label: "6 months", sub: "Biannual" },
-                      { days: 365, label: "1 year", sub: "Annual" },
+                      { days: 60, label: "60 days", sub: "Bimonthly", rec: true },
+                      { days: 90, label: "90 days", sub: "Quarterly" },
                     ].map(opt => (
                       <button
                         key={opt.days}
@@ -493,22 +493,6 @@ function SetupContent() {
                         <div className="text-xs text-white/30 uppercase tracking-widest">{opt.sub}</div>
                       </button>
                     ))}
-                  </div>
-
-                  {/* Custom interval */}
-                  <div className="mb-6">
-                    <label className="text-xs text-white/30 mb-2 block uppercase tracking-widest">Custom interval (days)</label>
-                    <div className="flex gap-3 items-center">
-                      <input
-                        type="number" min={1} max={365}
-                        placeholder="e.g. 60"
-                        value={customDays}
-                        onChange={e => { setCustomDays(e.target.value); setIntervalDays(null); setIntervalError(""); }}
-                        onFocus={() => setIntervalDays(null)}
-                        className="w-36 bg-white/[0.03] border border-white/8 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/25 transition-colors"
-                      />
-                      <span className="text-sm text-white/30">days</span>
-                    </div>
                   </div>
 
                   {/* Grace period */}
@@ -632,7 +616,7 @@ function SetupContent() {
                         <button onClick={() => setPhase(2)} className="text-xs text-white/30 hover:text-white/60 transition-colors">Edit</button>
                       </div>
                       <div className="flex items-baseline gap-3 mt-2">
-                        <span className="text-2xl font-bold text-white">Every {effectiveInterval} days</span>
+                        <span className="text-2xl font-bold text-white">Every {intervalDays} days</span>
                         {gracePeriodDays > 0 && <span className="text-sm text-white/30">+{gracePeriodDays}d grace</span>}
                       </div>
                     </div>

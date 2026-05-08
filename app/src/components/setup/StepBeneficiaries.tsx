@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { PublicKey } from "@solana/web3.js";
 import { BeneficiaryInput } from "@/lib/vigil";
 
 interface Props {
@@ -8,16 +7,17 @@ interface Props {
 }
 
 export function StepBeneficiaries({ onNext }: Props) {
-  const [rows, setRows] = useState([{ wallet: "", share: 100 }]);
+  const [rows, setRows] = useState([{ email: "", share: 100 }]);
   const [error, setError] = useState("");
 
   const totalShare = rows.reduce((s, r) => s + r.share, 0);
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
   function addRow() {
-    setRows(prev => [...prev, { wallet: "", share: 0 }]);
+    setRows(prev => [...prev, { email: "", share: 0 }]);
   }
 
-  function updateRow(i: number, field: "wallet" | "share", value: string | number) {
+  function updateRow(i: number, field: "email" | "share", value: string | number) {
     setRows(prev => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
   }
 
@@ -25,22 +25,24 @@ export function StepBeneficiaries({ onNext }: Props) {
     setRows(prev => prev.filter((_, idx) => idx !== i));
   }
 
-  function validate(): BeneficiaryInput[] | null {
+  async function validate(): Promise<BeneficiaryInput[] | null> {
     if (totalShare !== 100) { setError("Los porcentajes deben sumar 100%"); return null; }
     const result: BeneficiaryInput[] = [];
     for (const row of rows) {
-      try {
-        result.push({ wallet: new PublicKey(row.wallet), shareBps: row.share * 100 });
-      } catch {
-        setError(`Wallet inválida: ${row.wallet}`);
+      if (!EMAIL_RE.test(row.email.trim())) {
+        setError(`Email inválido: ${row.email}`);
         return null;
       }
+      const encoder = new TextEncoder();
+      const data = encoder.encode(row.email.trim().toLowerCase());
+      const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer.slice(0) as ArrayBuffer);
+      result.push({ emailHash: Array.from(new Uint8Array(hashBuffer)), shareBps: row.share * 100 });
     }
     return result;
   }
 
-  function handleNext() {
-    const valid = validate();
+  async function handleNext() {
+    const valid = await validate();
     if (valid) { setError(""); onNext(valid); }
   }
 
@@ -48,17 +50,18 @@ export function StepBeneficiaries({ onNext }: Props) {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold">¿Quién recibe tus activos?</h2>
-        <p className="text-gray-400 text-sm mt-2">Ingresá la wallet de cada beneficiario y el porcentaje que le corresponde.</p>
+        <p className="text-gray-400 text-sm mt-2">Ingresá el email de cada beneficiario y el porcentaje que le corresponde.</p>
       </div>
 
       <div className="space-y-3">
         {rows.map((row, i) => (
           <div key={i} className="flex gap-2 items-center">
             <input
-              placeholder="Wallet address (Solana)"
-              value={row.wallet}
-              onChange={e => updateRow(i, "wallet", e.target.value)}
-              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:border-emerald-500 transition-colors"
+              type="email"
+              placeholder="heredero@email.com"
+              value={row.email}
+              onChange={e => updateRow(i, "email", e.target.value)}
+              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
             />
             <input
               type="number"

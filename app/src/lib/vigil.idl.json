@@ -9,6 +9,9 @@
   "instructions": [
     {
       "name": "cancel",
+      "docs": [
+        "Owner cancels and recovers rent. Closes the vault_config account."
+      ],
       "discriminator": [
         232,
         219,
@@ -59,6 +62,9 @@
     },
     {
       "name": "checkin",
+      "docs": [
+        "Owner proves they are alive. Updates last_checkin and resets the timer."
+      ],
       "discriminator": [
         223,
         175,
@@ -130,7 +136,309 @@
       "args": []
     },
     {
+      "name": "claim",
+      "docs": [
+        "Called by backend authority after verifying heir's email via Privy.",
+        "Transfers heir's allocation from vault to their wallet. Backend pays the gas."
+      ],
+      "discriminator": [
+        62,
+        198,
+        214,
+        193,
+        213,
+        159,
+        108,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "vault_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  105,
+                  103,
+                  105,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault_config.owner",
+                "account": "VaultConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "docs": [
+            "PDA that owns the vault token account"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_token_account",
+          "docs": [
+            "Vault token account — source of heir's allocation"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault_authority"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "heir",
+          "docs": [
+            "Heir's wallet — no on-chain signature needed; backend verified email via Privy"
+          ]
+        },
+        {
+          "name": "heir_token_account",
+          "docs": [
+            "Heir's token account — created here if it doesn't exist (backend pays rent)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "heir"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "backend_authority",
+          "docs": [
+            "Backend server keypair — verifies email identity off-chain, signs on-chain"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "email_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "execute_distribution",
+      "docs": [
+        "Permissionless: anyone can call once the timer expires.",
+        "Moves all delegated tokens from owner's ATA to a vault PDA.",
+        "Records total amount so claim amounts are fixed from this point on."
+      ],
       "discriminator": [
         163,
         217,
@@ -166,14 +474,165 @@
           }
         },
         {
+          "name": "owner_token_account",
+          "docs": [
+            "Owner's token account — must have approved vault_config PDA as delegate"
+          ],
+          "writable": true
+        },
+        {
+          "name": "vault_authority",
+          "docs": [
+            "PDA that will own the vault token account"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_token_account",
+          "docs": [
+            "Vault ATA — holds all tokens until each heir claims"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault_authority"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
           "name": "caller",
+          "docs": [
+            "Anyone can execute once the timer expires (permissionless keeper)"
+          ],
+          "writable": true,
           "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
     },
     {
       "name": "force_expire",
+      "docs": [
+        "Dev/demo only: backdates last_checkin to force expiry."
+      ],
       "discriminator": [
         181,
         233,
@@ -220,6 +679,10 @@
     },
     {
       "name": "register",
+      "docs": [
+        "Owner sets up their will: beneficiaries (by email hash), check-in interval,",
+        "and the backend authority pubkey that will verify heir identities at claim time."
+      ],
       "discriminator": [
         211,
         124,
@@ -281,6 +744,10 @@
         {
           "name": "grace_period_days",
           "type": "u8"
+        },
+        {
+          "name": "backend_authority",
+          "type": "pubkey"
         }
       ]
     }
@@ -312,6 +779,19 @@
         88,
         144,
         236
+      ]
+    },
+    {
+      "name": "ClaimedEvent",
+      "discriminator": [
+        144,
+        172,
+        209,
+        86,
+        144,
+        87,
+        84,
+        115
       ]
     },
     {
@@ -352,7 +832,7 @@
     {
       "code": 6004,
       "name": "VaultInactive",
-      "msg": "Vault is not active"
+      "msg": "Will is not active"
     },
     {
       "code": 6005,
@@ -363,6 +843,41 @@
       "code": 6006,
       "name": "Unauthorized",
       "msg": "Only the owner can perform this action"
+    },
+    {
+      "code": 6007,
+      "name": "NotExecuted",
+      "msg": "Will has not been executed yet"
+    },
+    {
+      "code": 6008,
+      "name": "AlreadyClaimed",
+      "msg": "This allocation has already been claimed"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidAuthority",
+      "msg": "Backend authority mismatch"
+    },
+    {
+      "code": 6010,
+      "name": "BeneficiaryNotFound",
+      "msg": "No beneficiary found with that email hash"
+    },
+    {
+      "code": 6011,
+      "name": "ZeroBalance",
+      "msg": "Token balance is zero, nothing to distribute"
+    },
+    {
+      "code": 6012,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidTokenMint",
+      "msg": "Token mint does not match the executed distribution"
     }
   ],
   "types": [
@@ -372,11 +887,22 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "wallet",
-            "type": "pubkey"
+            "name": "email_hash",
+            "docs": [
+              "sha256 of the heir's email address"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "share_bps",
+            "docs": [
+              "Basis points (500 = 5%), all must sum to 10_000"
+            ],
             "type": "u16"
           }
         ]
@@ -403,6 +929,39 @@
       }
     },
     {
+      "name": "ClaimedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault_config",
+            "type": "pubkey"
+          },
+          {
+            "name": "email_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "heir",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "DistributionExecutedEvent",
       "type": {
         "kind": "struct",
@@ -416,8 +975,12 @@
             "type": "i64"
           },
           {
-            "name": "beneficiary_count",
-            "type": "u8"
+            "name": "token_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_amount",
+            "type": "u64"
           }
         ]
       }
@@ -429,6 +992,10 @@
         "fields": [
           {
             "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "backend_authority",
             "type": "pubkey"
           },
           {
@@ -454,16 +1021,38 @@
             "type": "i64"
           },
           {
-            "name": "_reserved",
-            "type": "u64"
-          },
-          {
             "name": "is_active",
             "type": "bool"
           },
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "executed_token_mint",
+            "docs": [
+              "Set at execution time — zero pubkey while active"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "executed_total",
+            "docs": [
+              "Total token amount moved to vault at execution"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "claimed_flags",
+            "docs": [
+              "One flag per beneficiary slot (indexed by position in beneficiaries vec)"
+            ],
+            "type": {
+              "array": [
+                "bool",
+                5
+              ]
+            }
           }
         ]
       }

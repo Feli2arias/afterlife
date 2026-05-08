@@ -14,10 +14,11 @@ import PrivyClaimProvider from "@/components/PrivyClaimProvider";
 
 interface VaultData {
   owner: { toBase58: () => string };
-  beneficiaries: Array<{ wallet: { toBase58: () => string }; shareBps: number }>;
+  beneficiaries: Array<{ emailHash: number[]; shareBps: number }>;
   isActive: boolean;
   intervalDays: number;
   lastCheckin: { toNumber: () => number };
+  executedTotal: { toNumber: () => number };
 }
 
 const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif";
@@ -25,10 +26,11 @@ const MONO = "'SF Mono', 'Fira Code', 'Courier New', monospace";
 
 const DEMO_VAULT: VaultData = {
   owner: { toBase58: () => "Demo1111111111111111111111111111111111111111" },
-  beneficiaries: [{ wallet: { toBase58: () => "Bene1abc123def456ghi789jkl012mno345pqr678stu" }, shareBps: 5000 }],
+  beneficiaries: [{ emailHash: new Array(32).fill(0), shareBps: 5000 }],
   isActive: false,
   intervalDays: 60,
   lastCheckin: { toNumber: () => Math.floor(Date.now() / 1000) - 70 * 86400 },
+  executedTotal: { toNumber: () => 2_100_000_000 }, // 2.1 SOL demo
 };
 
 type Screen = "landing" | "choice" | "has-wallet" | "no-wallet" | "claiming-phantom" | "claiming-privy" | "claimed";
@@ -169,8 +171,24 @@ function ClaimContent({
   }, [privyAuthenticated, screen]);
 
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [phantomEmail, setPhantomEmail] = useState("");
 
-  async function executeClaim(heirAddress: string) {
+  const heirIdxRaw = parseInt(searchParams.get("heir") ?? "0", 10);
+  const heirIdx = Number.isFinite(heirIdxRaw) && heirIdxRaw >= 0 ? heirIdxRaw : 0;
+  const displayShare = vault?.beneficiaries[heirIdx]?.shareBps ?? 0;
+
+  // After execution tokens are in vault — use executedTotal. Before, show owner's wSOL.
+  const executedTotal = vault?.executedTotal?.toNumber?.() ?? 0;
+  const claimableAmount = vault && !vault.isActive && executedTotal > 0
+    ? executedTotal * displayShare / 10_000
+    : ownerWsol * displayShare / 10_000 * LAMPORTS_PER_SOL;
+  const displaySol = (claimableAmount / LAMPORTS_PER_SOL).toFixed(3);
+
+  async function executeClaim(heirAddress: string, heirEmail: string) {
+    if (!heirEmail.trim()) {
+      setClaimError("Please enter your email address to claim");
+      return;
+    }
     setClaiming(true);
     setClaimError(null);
     try {
@@ -180,7 +198,7 @@ function ClaimContent({
         body: JSON.stringify({
           ownerAddress: ownerParam,
           heirAddress,
-          shareBps: displayShare,
+          heirEmail: heirEmail.trim().toLowerCase(),
         }),
       });
       const data = await res.json().catch(() => ({ error: "Invalid response" }));
@@ -197,18 +215,13 @@ function ClaimContent({
 
   async function claimWithPhantom() {
     if (!publicKey) return;
-    await executeClaim(publicKey.toBase58());
+    await executeClaim(publicKey.toBase58(), phantomEmail);
   }
 
   async function claimWithPrivy() {
-    if (!privyWalletAddress) return;
-    await executeClaim(privyWalletAddress);
+    if (!privyWalletAddress || !privyEmail) return;
+    await executeClaim(privyWalletAddress, privyEmail);
   }
-
-  const heirIdxRaw = parseInt(searchParams.get("heir") ?? "0", 10);
-  const heirIdx = Number.isFinite(heirIdxRaw) && heirIdxRaw >= 0 ? heirIdxRaw : 0;
-  const displayShare = vault?.beneficiaries[heirIdx]?.shareBps ?? 0;
-  const displaySol = ((ownerWsol * displayShare) / 10_000).toFixed(3);
 
   const activeAddress = walletPath === "privy"
     ? privyWalletAddress
@@ -392,6 +405,8 @@ function ClaimContent({
                 onClaim={claimWithPhantom}
                 onDisconnect={() => setScreen("choice")}
                 walletLabel="Phantom"
+                emailInput={phantomEmail}
+                onEmailChange={setPhantomEmail}
               />
             )}
 
@@ -597,6 +612,7 @@ function NextStep({ num, title, desc, link }: { num: string; title: string; desc
 function ClaimCard({
   address, displaySol, displayShare,
   ownerParam, claiming, error, onClaim, onDisconnect, walletLabel, privyEmail,
+  emailInput, onEmailChange,
 }: {
   address: string;
   displaySol: string;
@@ -608,6 +624,8 @@ function ClaimCard({
   onDisconnect: () => void;
   walletLabel: string;
   privyEmail?: string;
+  emailInput?: string;
+  onEmailChange?: (v: string) => void;
 }) {
   return (
     <motion.div key="claiming" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.4 }}>
@@ -640,6 +658,25 @@ function ClaimCard({
           <Row label="Contract" value={`${ownerParam.slice(0, 6)}...${ownerParam.slice(-4)}`} mono />
         </div>
 
+        {/* Email input — Phantom users must provide email to match on-chain hash */}
+        {onEmailChange !== undefined && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)", marginBottom: 8, fontFamily: SF }}>
+              Your email address
+            </label>
+            <input
+              type="email"
+              placeholder="email@example.com"
+              value={emailInput ?? ""}
+              onChange={e => onEmailChange(e.target.value)}
+              style={{ width: "100%", padding: "12px 14px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 14, fontFamily: SF, outline: "none", boxSizing: "border-box" }}
+            />
+            <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.2)", fontFamily: SF }}>
+              Must match the email your benefactor used when setting up Vigil
+            </p>
+          </div>
+        )}
+
         {error && (
           <p style={{ textAlign: "center", fontSize: 12, color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontFamily: SF }}>
             {error}
@@ -656,7 +693,7 @@ function ClaimCard({
       </div>
 
       <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.15)", lineHeight: 1.6, margin: "0 0 8px", fontFamily: SF }}>
-        No signature required — transaction processed by Vigil keeper
+        No gas needed — transaction signed by Vigil protocol
       </p>
       <div style={{ textAlign: "center" }}>
         <button onClick={onDisconnect} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.15)", fontSize: 12, cursor: "pointer", fontFamily: SF }}>

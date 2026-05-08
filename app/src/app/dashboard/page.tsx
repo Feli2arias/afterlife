@@ -22,23 +22,25 @@ const MONO = "'SF Mono', 'Fira Code', 'Courier New', monospace";
 const DEMO_VAULT = {
   owner: { toBase58: () => "Demo1111111111111111111111111111111111111111" },
   beneficiaries: [
-    { wallet: { toBase58: () => "Bene1abc123def456ghi789jkl012mno345pqr678stu" }, shareBps: 5000 },
-    { wallet: { toBase58: () => "Bene2xyz987wvu654tsr321qpo098nml765kji432hg" }, shareBps: 3000 },
-    { wallet: { toBase58: () => "Bene3zzz111aaa222bbb333ccc444ddd555eee666ff" }, shareBps: 2000 },
+    { emailHash: new Array(32).fill(1), shareBps: 5000 },
+    { emailHash: new Array(32).fill(2), shareBps: 3000 },
+    { emailHash: new Array(32).fill(3), shareBps: 2000 },
   ],
   isActive: true,
   intervalDays: 60,
   gracePeriodDays: 7,
   lastCheckin: { toNumber: () => Math.floor(Date.now() / 1000) - 18 * 86400 },
+  executedTotal: { toNumber: () => 0 },
 };
 
 type VaultData = {
   owner: { toBase58: () => string };
-  beneficiaries: Array<{ wallet: { toBase58: () => string }; shareBps: number }>;
+  beneficiaries: Array<{ emailHash: number[]; shareBps: number }>;
   isActive: boolean;
   intervalDays: number;
   gracePeriodDays: number;
   lastCheckin: { toNumber: () => number };
+  executedTotal: { toNumber: () => number };
 };
 
 function timeRemaining(lastCheckin: number, intervalDays: number, gracePeriodDays: number) {
@@ -103,19 +105,18 @@ function EditIntervalModal({ current, grace, onSave, onClose, loading }: { curre
   );
 }
 
-function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { initialRows: Array<{ wallet: string; share: number }>; onSave: (rows: BeneficiaryInput[]) => void; onClose: () => void; loading: boolean }) {
+function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { initialRows: Array<{ email: string; share: number }>; onSave: (rows: Array<{ email: string; share: number }>) => void; onClose: () => void; loading: boolean }) {
   const [rows, setRows] = useState(initialRows);
   const [error, setError] = useState("");
   const total = rows.reduce((s, r) => s + Number(r.share || 0), 0);
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-  function validate(): BeneficiaryInput[] | null {
+  function validate(): Array<{ email: string; share: number }> | null {
     if (Math.abs(total - 100) > 0.01) { setError("Total must be 100%"); return null; }
-    const result: BeneficiaryInput[] = [];
     for (const row of rows) {
-      try { result.push({ wallet: new PublicKey(row.wallet.trim()), shareBps: Math.round(row.share * 100) }); }
-      catch { setError(`Invalid wallet: ${row.wallet.slice(0, 16)}`); return null; }
+      if (!EMAIL_RE.test(row.email.trim())) { setError(`Invalid email: ${row.email}`); return null; }
     }
-    return result;
+    return rows;
   }
 
   return (
@@ -123,7 +124,7 @@ function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { ini
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {rows.map((row, i) => (
           <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input value={row.wallet} onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, wallet: e.target.value } : r))} placeholder="Wallet address" style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "11px 12px", fontSize: 12, color: "white", fontFamily: MONO, outline: "none" }} />
+            <input type="email" value={row.email} onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, email: e.target.value } : r))} placeholder="heir@example.com" style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "11px 12px", fontSize: 13, color: "white", fontFamily: SF, outline: "none" }} />
             <input type="number" min={1} max={100} value={row.share} onChange={e => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, share: Number(e.target.value) } : r))} style={{ width: 56, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "11px 6px", fontSize: 13, color: "white", textAlign: "center", fontFamily: SF, outline: "none" }} />
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.25)" }}>%</span>
             {rows.length > 1 && <button onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", fontSize: 18, padding: "0 4px" }}>×</button>}
@@ -131,7 +132,7 @@ function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { ini
         ))}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <button onClick={() => rows.length < 5 && setRows(prev => [...prev, { wallet: "", share: 0 }])} disabled={rows.length >= 5} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, fontFamily: SF, padding: 0 }}>+ Add</button>
+        <button onClick={() => rows.length < 5 && setRows(prev => [...prev, { email: "", share: 0 }])} disabled={rows.length >= 5} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, fontFamily: SF, padding: 0 }}>+ Add</button>
         <span style={{ fontSize: 14, fontWeight: 700, color: Math.abs(total - 100) < 0.01 ? "rgba(255,255,255,0.7)" : "#ef4444" }}>{total}%</span>
       </div>
       {error && <p style={{ fontSize: 12, color: "#ef4444", marginBottom: 12 }}>{error}</p>}
@@ -267,23 +268,44 @@ function DashboardContent() {
     try {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
+      const backendAuthority = new PublicKey(
+        process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP"
+      );
       await cancelVault(program, publicKey);
-      const bens: BeneficiaryInput[] = vault.beneficiaries.map(b => ({ wallet: b.wallet as unknown as PublicKey, shareBps: b.shareBps }));
-      await registerVault(program, publicKey, bens, days, grace);
+      // Reuse existing email hashes directly from vault (no need to reverse-hash)
+      const bens: BeneficiaryInput[] = vault.beneficiaries.map(b => ({
+        emailHash: Array.from(b.emailHash),
+        shareBps: b.shareBps,
+      }));
+      await registerVault(program, publicKey, bens, days, grace, backendAuthority);
       setEditInterval(false);
       await loadVault();
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
   }
 
-  async function saveBeneficiaries(newBens: BeneficiaryInput[]) {
+  async function saveBeneficiaries(rows: Array<{ email: string; share: number }>) {
     if (!publicKey || !wallet || !vault) return;
     setSaving(true);
     try {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
+      const backendAuthority = new PublicKey(
+        process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP"
+      );
       await cancelVault(program, publicKey);
-      await registerVault(program, publicKey, newBens, vault.intervalDays, vault.gracePeriodDays);
+      const newBens: BeneficiaryInput[] = await Promise.all(rows.map(async r => {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(r.email.trim().toLowerCase());
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer.slice(0) as ArrayBuffer);
+        return { emailHash: Array.from(new Uint8Array(hashBuffer)), shareBps: Math.round(r.share * 100) };
+      }));
+      await registerVault(program, publicKey, newBens, vault.intervalDays, vault.gracePeriodDays, backendAuthority);
+      // Update session storage with new emails
+      const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
+      const existing = stored ? JSON.parse(stored) : [];
+      const updated = rows.map((r, i) => ({ email: r.email, name: existing[i]?.name ?? "", share: r.share }));
+      sessionStorage.setItem(`afterlife_heirs_${publicKey.toBase58()}`, JSON.stringify(updated));
       setEditBens(false);
       await loadVault();
     } catch (e) { console.error(e); }
@@ -349,7 +371,10 @@ function DashboardContent() {
   const ownerAddr = isDemo ? "Demo1111111111111111111111111111111111111111" : publicKey?.toBase58() ?? "";
   const shortAddr = `${ownerAddr.slice(0, 6)}...${ownerAddr.slice(-4)}`;
   const claimUrl = typeof window !== "undefined" ? `${window.location.origin}/claim/${ownerAddr}` : "";
-  const initialBenRows = vault.beneficiaries.map(b => ({ wallet: b.wallet.toBase58(), share: b.shareBps / 100 }));
+  const initialBenRows = vault.beneficiaries.map((_, idx) => ({
+    email: heirEmails[idx]?.email ?? "",
+    share: vault.beneficiaries[idx].shareBps / 100,
+  }));
 
   return (
     <div className="min-h-screen bg-[#030303] text-white" style={{ fontFamily: SF }}>
@@ -557,8 +582,8 @@ function DashboardContent() {
                               0{idx + 1}
                             </div>
                             <div>
-                              <p className="text-white text-lg" style={{ fontFamily: heirEmails[idx]?.email ? undefined : MONO }}>
-                                {heirEmails[idx]?.email || `${b.wallet.toBase58().slice(0, 6)}...${b.wallet.toBase58().slice(-4)}`}
+                              <p className="text-white text-lg">
+                                {heirEmails[idx]?.email || `Heir ${idx + 1}`}
                               </p>
                               <p className="text-sm text-[#666] tracking-widest mt-1 uppercase font-semibold">
                                 ~{(solBal * b.shareBps / 10_000).toFixed(3)} SOL
@@ -752,6 +777,7 @@ function DashboardContent() {
       {editBens && vault && (
         <EditBeneficiariesModal initialRows={initialBenRows} onSave={saveBeneficiaries} onClose={() => setEditBens(false)} loading={saving} />
       )}
+
     </div>
   );
 }

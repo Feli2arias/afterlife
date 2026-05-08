@@ -1,5 +1,11 @@
 import { Program, AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
+import {
+  getAssociatedTokenAddress,
+  NATIVE_MINT,
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import idl from "./vigil.idl.json";
 
 export const PROGRAM_ID = new PublicKey(
@@ -8,13 +14,20 @@ export const PROGRAM_ID = new PublicKey(
 export const CHECKIN_FEE = 5_000_000;
 
 export interface BeneficiaryInput {
-  wallet: PublicKey;
+  emailHash: number[];
   shareBps: number;
 }
 
 export function getVaultConfigPda(owner: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("vigil"), owner.toBuffer()],
+    PROGRAM_ID
+  );
+}
+
+export function getVaultAuthorityPda(vaultConfigPda: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("vault_auth"), vaultConfigPda.toBuffer()],
     PROGRAM_ID
   );
 }
@@ -36,14 +49,16 @@ export async function registerVault(
   owner: PublicKey,
   beneficiaries: BeneficiaryInput[],
   intervalDays: number,
-  gracePeriodDays: number
+  gracePeriodDays: number,
+  backendAuthority: PublicKey
 ) {
   const [vaultConfigPda] = getVaultConfigPda(owner);
   return program.methods
     .register(
-      beneficiaries.map(b => ({ wallet: b.wallet, shareBps: b.shareBps })),
+      beneficiaries.map(b => ({ emailHash: b.emailHash, shareBps: b.shareBps })),
       intervalDays,
-      gracePeriodDays
+      gracePeriodDays,
+      backendAuthority
     )
     .accounts({
       vaultConfig: vaultConfigPda,
@@ -90,10 +105,20 @@ export async function forceExpire(program: Program, owner: PublicKey) {
 
 export async function executeDistribution(program: Program, caller: PublicKey, vaultOwner: PublicKey) {
   const [vaultConfigPda] = getVaultConfigPda(vaultOwner);
+  const [vaultAuthorityPda] = getVaultAuthorityPda(vaultConfigPda);
+  const ownerTokenAccount = await getAssociatedTokenAddress(NATIVE_MINT, vaultOwner);
+  const vaultTokenAccount = await getAssociatedTokenAddress(NATIVE_MINT, vaultAuthorityPda, true);
+
   return program.methods
     .executeDistribution()
     .accounts({
       vaultConfig: vaultConfigPda,
+      ownerTokenAccount,
+      vaultAuthority: vaultAuthorityPda,
+      vaultTokenAccount,
+      tokenMint: NATIVE_MINT,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       caller,
       systemProgram: SystemProgram.programId,
     })

@@ -1,16 +1,24 @@
-import { Connection, PublicKey, Transaction, Keypair } from "@solana/web3.js";
+import {
+  Connection, PublicKey, Keypair, SystemProgram,
+  Transaction, TransactionInstruction,
+} from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
-  createTransferCheckedInstruction,
-  createAssociatedTokenAccountInstruction,
-  getAccount,
   NATIVE_MINT,
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { createHash } from "crypto";
 
 const RPC_URL =
-  process.env.NEXT_PUBLIC_HELIUS_RPC_URL ??
-  "https://api.devnet.solana.com";
-const DECIMALS = 9;
+  process.env.NEXT_PUBLIC_HELIUS_RPC_URL ?? "https://api.devnet.solana.com";
+
+const PROGRAM_ID = new PublicKey(
+  process.env.NEXT_PUBLIC_PROGRAM_ID ?? "4pKCmz43y8apgNqoAZVhYba11r5MyW6fiDnH3WGb16Uu"
+);
+
+// Anchor discriminator for `claim` instruction (sha256("global:claim")[0..8])
+const CLAIM_DISCRIMINATOR = Buffer.from([62, 198, 214, 193, 213, 159, 108, 210]);
 
 function getKeeper(): Keypair {
   const raw = process.env.KEEPER_PRIVATE_KEY;
@@ -20,14 +28,14 @@ function getKeeper(): Keypair {
 
 export async function POST(req: Request) {
   try {
-    const { ownerAddress, heirAddress, shareBps } = await req.json() as {
+    const { ownerAddress, heirAddress, heirEmail } = (await req.json()) as {
       ownerAddress: string;
       heirAddress: string;
-      shareBps: number;
+      heirEmail: string;
     };
 
-    if (!ownerAddress || !heirAddress || !shareBps) {
-      return Response.json({ error: "Missing fields" }, { status: 400 });
+    if (!ownerAddress || !heirAddress || !heirEmail) {
+      return Response.json({ error: "Missing fields: ownerAddress, heirAddress, heirEmail" }, { status: 400 });
     }
 
     const keeper = getKeeper();
@@ -35,72 +43,54 @@ export async function POST(req: Request) {
     const owner = new PublicKey(ownerAddress);
     const heir = new PublicKey(heirAddress);
 
-    // Read owner's wSOL ATA
-    const ownerAta = await getAssociatedTokenAddress(NATIVE_MINT, owner);
-    let ownerAcc;
-    try {
-      ownerAcc = await getAccount(connection, ownerAta);
-    } catch {
-      return Response.json({ error: "Owner has no wSOL — vault not set up" }, { status: 400 });
-    }
+    const [vaultConfigPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vigil"), owner.toBuffer()],
+      PROGRAM_ID
+    );
+    const [vaultAuthorityPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault_auth"), vaultConfigPda.toBuffer()],
+      PROGRAM_ID
+    );
 
-    if (ownerAcc.amount === 0n) {
-      return Response.json({ error: "Owner wSOL balance is zero" }, { status: 400 });
-    }
+    const vaultTokenAccount = await getAssociatedTokenAddress(NATIVE_MINT, vaultAuthorityPda, true);
+    const heirTokenAccount = await getAssociatedTokenAddress(NATIVE_MINT, heir);
 
-    // Verify keeper is the approved delegate
-    if (!ownerAcc.delegate || ownerAcc.delegate.toBase58() !== keeper.publicKey.toBase58()) {
-      return Response.json(
-        { error: `Vault not delegated to keeper. Delegate: ${ownerAcc.delegate?.toBase58() ?? "none"}` },
-        { status: 400 }
-      );
-    }
+    // Hash heir email — must match the hash stored at register time
+    const emailHashBytes = createHash("sha256")
+      .update(heirEmail.trim().toLowerCase())
+      .digest();
 
-    // Calculate heir's share (integer math to avoid float errors)
-    const amount = (ownerAcc.amount * BigInt(shareBps)) / 10_000n;
-    if (amount === 0n) {
-      return Response.json({ error: "Computed amount is zero" }, { status: 400 });
-    }
+    // Build `claim` instruction manually using Anchor's discriminator + Borsh args
+    const instructionData = Buffer.concat([CLAIM_DISCRIMINATOR, emailHashBytes]);
 
-    const heirAta = await getAssociatedTokenAddress(NATIVE_MINT, heir);
+    const ix = new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: vaultConfigPda, isSigner: false, isWritable: true },
+        { pubkey: vaultAuthorityPda, isSigner: false, isWritable: false },
+        { pubkey: vaultTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: heir, isSigner: false, isWritable: false },
+        { pubkey: heirTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: NATIVE_MINT, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: keeper.publicKey, isSigner: true, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      data: instructionData,
+    });
+
     const { blockhash } = await connection.getLatestBlockhash();
     const tx = new Transaction();
     tx.recentBlockhash = blockhash;
     tx.feePayer = keeper.publicKey;
-
-    // Create heir's wSOL ATA if it doesn't exist
-    try {
-      await getAccount(connection, heirAta);
-    } catch {
-      tx.add(
-        createAssociatedTokenAccountInstruction(
-          keeper.publicKey,
-          heirAta,
-          heir,
-          NATIVE_MINT
-        )
-      );
-    }
-
-    // Transfer wSOL from owner to heir using keeper as delegate
-    tx.add(
-      createTransferCheckedInstruction(
-        ownerAta,
-        NATIVE_MINT,
-        heirAta,
-        keeper.publicKey,
-        amount,
-        DECIMALS
-      )
-    );
-
+    tx.add(ix);
     tx.sign(keeper);
-    const sig = await connection.sendRawTransaction(tx.serialize(), {
-      skipPreflight: false,
-    });
+
+    const sig = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false });
     await connection.confirmTransaction(sig, "confirmed");
 
-    return Response.json({ signature: sig, amount: amount.toString() });
+    return Response.json({ signature: sig });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[/api/claim]", msg);

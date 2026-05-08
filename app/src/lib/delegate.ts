@@ -10,16 +10,9 @@ import {
   NATIVE_MINT,
   getAccount,
 } from "@solana/spl-token";
+import { getVaultConfigPda } from "./vigil";
 
-const KEEPER_PUBKEY = new PublicKey(
-  process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "BV2V4TuHsnVUiA8PqVv6ZLLaXbyMV5hPhBWy4wC3swj"
-);
-
-export const WSOL_MINT = NATIVE_MINT; // So11111111111111111111111111111111111111112
-
-function getDelegateAuthority(): PublicKey {
-  return KEEPER_PUBKEY;
-}
+export const WSOL_MINT = NATIVE_MINT;
 
 export interface TokenInfo {
   mint: PublicKey;
@@ -29,19 +22,18 @@ export interface TokenInfo {
   isNativeSol?: boolean;
 }
 
-// Wrap SOL → wSOL + approve delegate en una sola tx
+// Wrap SOL → wSOL + approve vault_config PDA as delegate in one tx
 export async function wrapAndApproveSOL(
   connection: Connection,
   owner: PublicKey,
   lamports: bigint,
   signTransaction: (tx: Transaction) => Promise<Transaction>
 ): Promise<string> {
-  const delegateAuthority = getDelegateAuthority();
+  const [vaultConfigPda] = getVaultConfigPda(owner);
   const wsolAta = await getAssociatedTokenAddress(WSOL_MINT, owner);
 
   const tx = new Transaction();
 
-  // Crear wSOL ATA si no existe
   try {
     await getAccount(connection, wsolAta);
   } catch {
@@ -50,16 +42,11 @@ export async function wrapAndApproveSOL(
     );
   }
 
-  // Transferir SOL nativo al wSOL ATA
   tx.add(
     SystemProgram.transfer({ fromPubkey: owner, toPubkey: wsolAta, lamports })
   );
-
-  // Sync para que el balance de wSOL refleje el depósito
   tx.add(createSyncNativeInstruction(wsolAta));
-
-  // Aprobar delegate
-  tx.add(createApproveInstruction(wsolAta, delegateAuthority, owner, lamports));
+  tx.add(createApproveInstruction(wsolAta, vaultConfigPda, owner, lamports));
 
   const { blockhash } = await connection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
@@ -76,11 +63,11 @@ export async function approveDelegateForToken(
   amount: bigint,
   signTransaction: (tx: Transaction) => Promise<Transaction>
 ): Promise<string> {
-  const delegateAuthority = getDelegateAuthority();
+  const [vaultConfigPda] = getVaultConfigPda(owner);
   const tokenAccount = await getAssociatedTokenAddress(mint, owner);
 
   const tx = new Transaction().add(
-    createApproveInstruction(tokenAccount, delegateAuthority, owner, amount)
+    createApproveInstruction(tokenAccount, vaultConfigPda, owner, amount)
   );
 
   const { blockhash } = await connection.getLatestBlockhash();
@@ -119,7 +106,6 @@ export async function getUserTokenAccounts(
 
   const tokens: TokenInfo[] = [];
 
-  // Check if there's already a wSOL ATA with balance (user already wrapped)
   const wsolAccount = splAccounts.value.find(
     a => a.account.data.parsed.info.mint === WSOL_MINT.toBase58()
   );
@@ -128,27 +114,24 @@ export async function getUserTokenAccounts(
     : 0n;
 
   if (wsolBalance > 0n) {
-    // User already has wSOL — show that amount directly, no wrap needed
     tokens.push({
       mint: WSOL_MINT,
       balance: wsolBalance,
       decimals: 9,
       symbol: "SOL",
-      isNativeSol: false, // already wSOL, just approve
+      isNativeSol: false,
     });
   } else if (solBalance > 50_000_000) {
-    // No wSOL yet — offer to wrap native SOL (keep 0.05 SOL for fees)
     const protectable = BigInt(solBalance - 50_000_000);
     tokens.push({
       mint: WSOL_MINT,
       balance: protectable,
       decimals: 9,
       symbol: "SOL",
-      isNativeSol: true, // needs wrapping first
+      isNativeSol: true,
     });
   }
 
-  // SPL tokens con balance > 0 (excluyendo wSOL ya manejado)
   const splTokens = splAccounts.value
     .filter(a => {
       const info = a.account.data.parsed.info;
