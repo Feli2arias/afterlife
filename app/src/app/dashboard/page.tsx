@@ -14,6 +14,8 @@ import {
   getProgram, fetchVaultConfig, forceExpire, executeDistribution,
   cancelVault, registerVault, checkin, BeneficiaryInput,
 } from "@/lib/vigil";
+import { wrapAndApproveSOL } from "@/lib/delegate";
+import { Transaction } from "@solana/web3.js";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif";
@@ -150,7 +152,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { publicKey } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
   const router = useRouter();
@@ -171,7 +173,10 @@ function DashboardContent() {
   const [copied, setCopied] = useState(false);
   const [demoCountdownEnd, setDemoCountdownEnd] = useState<number | null>(null);
   const [autoExecuting, setAutoExecuting] = useState(false);
+  const [autoExecError, setAutoExecError] = useState("");
   const [emailSent, setEmailSent] = useState(false);
+  const [authorizing, setAuthorizing] = useState(false);
+  const [authMsg, setAuthMsg] = useState("");
   const [heirEmails, setHeirEmails] = useState<{ email: string; name: string; share: number }[]>([]);
 
   useEffect(() => {
@@ -202,9 +207,11 @@ function DashboardContent() {
     loadVault();
     if (!isDemo && publicKey) {
       const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setHeirEmails(parsed);
+      if (stored) setHeirEmails(JSON.parse(stored));
+      const testKey = `afterlife_test_30s_${publicKey.toBase58()}`;
+      if (sessionStorage.getItem(testKey)) {
+        sessionStorage.removeItem(testKey);
+        setDemoCountdownEnd(Date.now() + 30_000);
       }
     }
   }, [loadVault, isDemo, publicKey]);
@@ -214,15 +221,14 @@ function DashboardContent() {
     if (!demoCountdownEnd || autoExecuting || !publicKey || !wallet) return;
     if (Date.now() < demoCountdownEnd) return;
     setAutoExecuting(true);
+    setDemoCountdownEnd(null); // clear before async work to prevent re-triggering
     (async () => {
       try {
         const provider = new AnchorProvider(connection, wallet, {});
         const program = getProgram(provider);
         await forceExpire(program, publicKey);
         await executeDistribution(program, publicKey, publicKey);
-        setDemoCountdownEnd(null);
         await loadVault();
-        // Send emails to heirs
         const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
         if (stored) {
           const heirs: { email: string; name: string; share: number }[] = JSON.parse(stored);
@@ -240,7 +246,12 @@ function DashboardContent() {
           ));
           setEmailSent(true);
         }
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[auto-execute]", msg);
+        setAutoExecError(msg);
+        await loadVault();
+      }
       finally { setAutoExecuting(false); }
     })();
   }, [tick, demoCountdownEnd, autoExecuting, publicKey, wallet, connection, loadVault]);
@@ -269,7 +280,7 @@ function DashboardContent() {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
       const backendAuthority = new PublicKey(
-        process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP"
+        (process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP").trim()
       );
       await cancelVault(program, publicKey);
       // Reuse existing email hashes directly from vault (no need to reverse-hash)
@@ -291,7 +302,7 @@ function DashboardContent() {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
       const backendAuthority = new PublicKey(
-        process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP"
+        (process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP").trim()
       );
       await cancelVault(program, publicKey);
       const newBens: BeneficiaryInput[] = await Promise.all(rows.map(async r => {
@@ -322,10 +333,42 @@ function DashboardContent() {
       await forceExpire(program, publicKey);
       setSimMsg("Executing distribution...");
       await executeDistribution(program, publicKey, publicKey);
-      setSimMsg("Done");
       await loadVault();
+      const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
+      if (stored) {
+        setSimMsg("Sending emails...");
+        const heirs: { email: string; name: string; share: number }[] = JSON.parse(stored);
+        const origin = window.location.origin;
+        await Promise.allSettled(heirs.map((h, idx) =>
+          fetch("/api/send-email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: h.email, name: h.name, share: h.share,
+              ownerAddress: publicKey.toBase58(),
+              claimUrl: `${origin}/claim/${publicKey.toBase58()}?heir=${idx}`,
+            }),
+          })
+        ));
+        setEmailSent(true);
+      }
+      setSimMsg("Done");
     } catch (e) { setSimMsg("Error: " + (e instanceof Error ? e.message : String(e))); }
     finally { setSimulating(false); }
+  }
+
+  async function handleAuthorize() {
+    if (!publicKey || !signTransaction) return;
+    setAuthorizing(true); setAuthMsg("");
+    try {
+      const nativeBal = await connection.getBalance(publicKey);
+      const lamports = BigInt(nativeBal - 50_000_000); // keep 0.05 SOL for fees
+      if (lamports <= 0n) { setAuthMsg("Not enough SOL for fees"); return; }
+      await wrapAndApproveSOL(connection, publicKey, lamports, signTransaction as (tx: Transaction) => Promise<Transaction>);
+      setAuthMsg("Authorized ✓");
+      await loadVault();
+    } catch (e) { setAuthMsg("Error: " + (e instanceof Error ? e.message : String(e))); }
+    finally { setAuthorizing(false); }
   }
 
   async function handleRevoke() {
@@ -367,6 +410,8 @@ function DashboardContent() {
         const rem = Math.max(0, Math.floor((demoCountdownEnd - Date.now()) / 1000));
         return { expired: rem === 0, d: 0, h: 0, m: Math.floor(rem / 60), s: rem % 60 };
       })()
+    : autoExecuting
+    ? { expired: true, d: 0, h: 0, m: 0, s: 0 }
     : timeRemaining(vault.lastCheckin.toNumber(), vault.intervalDays, vault.gracePeriodDays);
   const ownerAddr = isDemo ? "Demo1111111111111111111111111111111111111111" : publicKey?.toBase58() ?? "";
   const shortAddr = `${ownerAddr.slice(0, 6)}...${ownerAddr.slice(-4)}`;
@@ -508,15 +553,6 @@ function DashboardContent() {
                   </motion.button>
                 )}
 
-                {vault.isActive && !isDemo && !demoCountdownEnd && (
-                  <button
-                    onClick={() => setDemoCountdownEnd(Date.now() + 60_000)}
-                    className="mt-6 text-xs text-white/15 hover:text-white/40 transition-colors underline decoration-white/10 underline-offset-4"
-                  >
-                    Set timer to 1 min (test)
-                  </button>
-                )}
-
                 {demoCountdownEnd && (
                   <p className="mt-6 text-xs text-amber-400/60 animate-pulse">
                     {autoExecuting ? "Executing protocol..." : "Protocol executes in less than 1 minute..."}
@@ -526,6 +562,12 @@ function DashboardContent() {
                 {emailSent && (
                   <p className="mt-4 text-xs text-green-400/60">
                     ✓ Heir notified by email
+                  </p>
+                )}
+
+                {autoExecError && (
+                  <p className="mt-4 text-xs text-red-400/70 max-w-xs text-center">
+                    ✗ {autoExecError}
                   </p>
                 )}
 
@@ -674,6 +716,19 @@ function DashboardContent() {
                       <p className="text-[#888] font-medium">Not delegated</p>
                     </div>
                   </div>
+
+                  {!isDemo && (
+                    <div className="mt-6 flex items-center gap-4">
+                      <button
+                        onClick={handleAuthorize}
+                        disabled={authorizing}
+                        className="px-6 py-3 rounded-full bg-white/[0.05] border border-white/10 text-white/70 text-sm font-semibold hover:bg-white hover:text-black transition-all disabled:opacity-40"
+                      >
+                        {authorizing ? "Authorizing..." : "Authorize / Re-authorize SOL"}
+                      </button>
+                      {authMsg && <p className="text-xs text-white/40">{authMsg}</p>}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}

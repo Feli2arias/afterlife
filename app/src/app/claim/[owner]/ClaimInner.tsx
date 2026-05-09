@@ -44,14 +44,22 @@ function ClaimWithPrivy({ params }: { params: Promise<{ owner: string }> }) {
   const { createWallet } = useCreateWallet();
   const { exportWallet } = useExportWallet();
   const [creatingWallet, setCreatingWallet] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
 
   const privyWalletAddress = wallets[0]?.address ?? null;
 
-  // If logged in but no Solana wallet yet, create one
+  // Fallback: if logged in but createOnLogin didn't fire, create wallet manually
   useEffect(() => {
     if (!authenticated || privyWalletAddress || creatingWallet) return;
     setCreatingWallet(true);
-    createWallet().catch(console.error).finally(() => setCreatingWallet(false));
+    setWalletError(null);
+    createWallet()
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        // "already has wallet" is not a real error — Privy just beat us to it
+        if (!msg.toLowerCase().includes("already")) setWalletError(msg);
+      })
+      .finally(() => setCreatingWallet(false));
   }, [authenticated, privyWalletAddress, creatingWallet, createWallet]);
 
   return (
@@ -63,7 +71,8 @@ function ClaimWithPrivy({ params }: { params: Promise<{ owner: string }> }) {
         privyAuthenticated={authenticated && !!privyWalletAddress}
         privyEmail={user?.email?.address ?? null}
         privyWalletAddress={privyWalletAddress}
-        privyCreatingWallet={authenticated && !privyWalletAddress}
+        privyCreatingWallet={authenticated && !privyWalletAddress && !walletError}
+        privyWalletError={walletError}
         privyExportWallet={exportWallet}
       />
     </Suspense>
@@ -87,6 +96,7 @@ export default function ClaimInner({ params }: { params: Promise<{ owner: string
           privyEmail={null}
           privyWalletAddress={null}
           privyCreatingWallet={false}
+          privyWalletError={privyError}
         />
       </Suspense>
     );
@@ -109,6 +119,7 @@ interface ClaimContentProps {
   privyEmail: string | null;
   privyWalletAddress: string | null;
   privyCreatingWallet?: boolean;
+  privyWalletError?: string | null;
   privyExportWallet?: () => Promise<void>;
 }
 
@@ -120,6 +131,7 @@ function ClaimContent({
   privyEmail,
   privyWalletAddress,
   privyCreatingWallet,
+  privyWalletError,
   privyExportWallet,
 }: ClaimContentProps) {
   const { owner: ownerParam } = use(params);
@@ -369,6 +381,12 @@ function ClaimContent({
                       <p style={{ margin: 0, fontSize: 14, color: "rgba(255,255,255,0.6)" }}>{s.text}</p>
                     </div>
                   ))}
+
+                  {privyWalletError && (
+                    <p style={{ textAlign: "center", fontSize: 12, color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 10, padding: "10px 14px", fontFamily: SF }}>
+                      Wallet creation failed: {privyWalletError}. Please try again or use Phantom.
+                    </p>
+                  )}
 
                   {privyCreatingWallet ? (
                     <div style={{ textAlign: "center", padding: "16px 0", color: "rgba(255,255,255,0.4)", fontSize: 14, fontFamily: SF }}>

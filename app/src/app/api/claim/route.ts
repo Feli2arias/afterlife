@@ -21,7 +21,7 @@ const PROGRAM_ID = new PublicKey(
 const CLAIM_DISCRIMINATOR = Buffer.from([62, 198, 214, 193, 213, 159, 108, 210]);
 
 function getKeeper(): Keypair {
-  const raw = process.env.KEEPER_PRIVATE_KEY;
+  const raw = process.env.KEEPER_PRIVATE_KEY?.trim();
   if (!raw) throw new Error("KEEPER_PRIVATE_KEY not set");
   return Keypair.fromSecretKey(new Uint8Array(JSON.parse(raw)));
 }

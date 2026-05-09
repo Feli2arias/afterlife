@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { PublicKey, Transaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { getProgram, registerVault, cancelVault, forceCloseVault, fetchVaultConfig, vaultConfigExists, BeneficiaryInput } from "@/lib/vigil";
-import { getUserTokenAccounts, wrapAndApproveSOL, approveDelegateForToken } from "@/lib/delegate";
+import { wrapAndApproveSOL } from "@/lib/delegate";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, ChevronRight, ChevronLeft, Info, Check, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
@@ -97,16 +97,14 @@ function SetupContent() {
   const [customDays, setCustomDays] = useState("");
   const [gracePeriodDays, setGracePeriodDays] = useState(0);
   const [intervalError, setIntervalError] = useState("");
+  const [isTestInterval, setIsTestInterval] = useState(false);
 
   // Step 3: contact
   const [email, setEmail] = useState("");
   const [backupEmail, setBackupEmail] = useState("");
   const [emailError, setEmailError] = useState("");
 
-  // Step 4: authorize + deploy
-  const [tokenInfos, setTokenInfos] = useState<Awaited<ReturnType<typeof getUserTokenAccounts>>>([]);
-  const [approving, setApproving] = useState<string | null>(null);
-  const [approved, setApproved] = useState<Set<string>>(new Set());
+  // Step 4: deploy
   const [deploying, setDeploying] = useState(false);
   const [deployError, setDeployError] = useState("");
 
@@ -115,11 +113,6 @@ function SetupContent() {
 
   // no auto-advance — user clicks Continue explicitly
 
-  useEffect(() => {
-    if (phase === 4 && publicKey) {
-      getUserTokenAccounts(connection, publicKey).then(setTokenInfos);
-    }
-  }, [phase, publicKey]); // eslint-disable-line
 
   const effectiveInterval = intervalDays ?? 0;
   const totalShare = rows.reduce((s, r) => s + Number(r.share || 0), 0);
@@ -155,7 +148,7 @@ function SetupContent() {
   }
 
   function validateStep2(): boolean {
-    if (!intervalDays || ![30, 60, 90].includes(intervalDays)) {
+    if (!isTestInterval && (!intervalDays || ![30, 60, 90].includes(intervalDays))) {
       setIntervalError("Please select an interval");
       return false;
     }
@@ -183,45 +176,34 @@ function SetupContent() {
     if (phase > 1) setPhase(p => p - 1);
   }
 
-  // ── Authorize ────────────────────────────────────────────────────────────────
-
-  async function handleApprove(token: typeof tokenInfos[0]) {
-    if (!publicKey || !signTransaction) return;
-    const key = token.mint.toBase58();
-    setApproving(key);
-    try {
-      if (token.isNativeSol) {
-        await wrapAndApproveSOL(connection, publicKey, token.balance, signTransaction as (tx: Transaction) => Promise<Transaction>);
-      } else {
-        await approveDelegateForToken(connection, publicKey, token.mint, token.balance, signTransaction as (tx: Transaction) => Promise<Transaction>);
-      }
-      setApproved(prev => new Set([...prev, key]));
-    } catch (e) {
-      console.error(e);
-    } finally { setApproving(null); }
-  }
-
   // ── Deploy ───────────────────────────────────────────────────────────────────
 
   async function handleDeploy() {
     if (isDemo) { router.push("/dashboard?demo=1"); return; }
-    if (!publicKey || !wallet) return;
+    if (!publicKey || !wallet || !signTransaction) return;
     setDeploying(true); setDeployError("");
     try {
+      // Step 1: wrap SOL → wSOL and approve vault_config as delegate
+      const nativeBal = await connection.getBalance(publicKey);
+      const lamports = BigInt(nativeBal - 50_000_000); // keep 0.05 SOL for fees
+      if (lamports > 0n) {
+        const sig = await wrapAndApproveSOL(
+          connection, publicKey, lamports,
+          signTransaction as (tx: Transaction) => Promise<Transaction>
+        );
+        await connection.confirmTransaction(sig, "confirmed");
+      }
+
+      // Step 2: register vault on-chain
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
-      // Check raw account existence first (works even if deserialization fails)
       const accountExists = await vaultConfigExists(program, publicKey);
       if (accountExists) {
-        // Try normal cancel first; if it fails (old schema), use force_close
-        try {
-          await cancelVault(program, publicKey);
-        } catch {
-          await forceCloseVault(program, publicKey);
-        }
+        try { await cancelVault(program, publicKey); }
+        catch { await forceCloseVault(program, publicKey); }
       }
       const backendAuthority = new PublicKey(
-        process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP"
+        (process.env.NEXT_PUBLIC_KEEPER_PUBKEY ?? "4FbVVCDGNPLG69a1DBnLm1NXotJ8ZusvUi67uamx8orP").trim()
       );
       const bens: BeneficiaryInput[] = await Promise.all(rows.map(async r => {
         const encoder = new TextEncoder();
@@ -229,11 +211,14 @@ function SetupContent() {
         const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer.slice(0) as ArrayBuffer);
         return { emailHash: Array.from(new Uint8Array(hashBuffer)), shareBps: Math.round(r.share * 100) };
       }));
-      await registerVault(program, publicKey, bens, effectiveInterval, gracePeriodDays, backendAuthority);
+      await registerVault(program, publicKey, bens, isTestInterval ? 30 : effectiveInterval, gracePeriodDays, backendAuthority);
       sessionStorage.setItem(
         `afterlife_heirs_${publicKey.toBase58()}`,
         JSON.stringify(rows.map(r => ({ email: r.email.trim(), name: r.name.trim(), share: r.share })))
       );
+      if (isTestInterval) {
+        sessionStorage.setItem(`afterlife_test_30s_${publicKey.toBase58()}`, "true");
+      }
       router.push("/dashboard");
     } catch (e: unknown) {
       setDeployError(e instanceof Error ? e.message : "Deployment failed. Please try again.");
@@ -479,7 +464,7 @@ function SetupContent() {
                     )}
                   </AnimatePresence>
 
-                  <div className="grid grid-cols-3 gap-3 mb-6">
+                  <div className="grid grid-cols-3 gap-3 mb-3">
                     {[
                       { days: 30, label: "30 days", sub: "Monthly" },
                       { days: 60, label: "60 days", sub: "Bimonthly", rec: true },
@@ -487,9 +472,9 @@ function SetupContent() {
                     ].map(opt => (
                       <button
                         key={opt.days}
-                        onClick={() => { setIntervalDays(opt.days); setIntervalError(""); }}
+                        onClick={() => { setIntervalDays(opt.days); setIsTestInterval(false); setIntervalError(""); }}
                         className={`relative p-5 rounded-2xl border text-left transition-all ${
-                          intervalDays === opt.days
+                          !isTestInterval && intervalDays === opt.days
                             ? "border-white/40 bg-white/[0.06]"
                             : "border-white/8 bg-white/[0.02] hover:border-white/20"
                         }`}
@@ -502,6 +487,21 @@ function SetupContent() {
                       </button>
                     ))}
                   </div>
+
+                  <button
+                    onClick={() => { setIsTestInterval(true); setIntervalDays(null); setIntervalError(""); }}
+                    className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between mb-6 ${
+                      isTestInterval
+                        ? "border-amber-500/40 bg-amber-500/[0.06]"
+                        : "border-white/5 bg-white/[0.01] hover:border-white/15"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-white/60">30 seconds</span>
+                      <span className="text-xs text-white/25 uppercase tracking-widest">Demo only</span>
+                    </div>
+                    <span className="text-[10px] font-bold tracking-widest uppercase border border-amber-500/30 text-amber-400/70 px-2 py-0.5 rounded-full">Test</span>
+                  </button>
 
                   {/* Grace period */}
                   <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5 mb-8">
@@ -624,8 +624,10 @@ function SetupContent() {
                         <button onClick={() => setPhase(2)} className="text-xs text-white/30 hover:text-white/60 transition-colors">Edit</button>
                       </div>
                       <div className="flex items-baseline gap-3 mt-2">
-                        <span className="text-2xl font-bold text-white">Every {intervalDays} days</span>
-                        {gracePeriodDays > 0 && <span className="text-sm text-white/30">+{gracePeriodDays}d grace</span>}
+                        <span className="text-2xl font-bold text-white">
+                          {isTestInterval ? "30 seconds (test)" : `Every ${intervalDays} days`}
+                        </span>
+                        {!isTestInterval && gracePeriodDays > 0 && <span className="text-sm text-white/30">+{gracePeriodDays}d grace</span>}
                       </div>
                     </div>
 
@@ -641,42 +643,6 @@ function SetupContent() {
                       </div>
                     )}
 
-                    {/* Authorize assets — only show when there are actual funds */}
-                    {!isDemo && tokenInfos.some(t => Number(t.balance) > 0) && (
-                      <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
-                        <div className="mb-4">
-                          <span className="text-xs text-white/30 uppercase tracking-widest block mb-1">Secure Transfer Authorization</span>
-                          <p className="text-xs text-white/25 leading-relaxed">
-                            Authorize Afterlife to transfer these assets only when your Continuity Plan activates. Your assets stay in your wallet until then.
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          {tokenInfos.map(token => {
-                            const key = token.mint.toBase58();
-                            const isApproved = approved.has(key);
-                            const isApprovingThis = approving === key;
-                            const display = token.isNativeSol
-                              ? `${(Number(token.balance) / LAMPORTS_PER_SOL).toFixed(4)} SOL`
-                              : `${(Number(token.balance) / 10 ** token.decimals).toFixed(2)} ${token.symbol}`;
-                            return (
-                              <div key={key} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                                <div>
-                                  <span className="text-sm font-medium text-white/70">{token.symbol}</span>
-                                  <span className="text-xs text-white/25 ml-2">{display}</span>
-                                </div>
-                                <button
-                                  onClick={() => !isApproved && handleApprove(token)}
-                                  disabled={isApproved || !!isApprovingThis}
-                                  className={`text-xs font-semibold px-4 py-1.5 rounded-full transition-all ${isApproved ? "bg-white/[0.05] text-white/30 cursor-default" : "bg-white text-black hover:bg-white/90"}`}
-                                >
-                                  {isApprovingThis ? "Signing..." : isApproved ? "✓ Authorized" : "Authorize"}
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Network fee note */}

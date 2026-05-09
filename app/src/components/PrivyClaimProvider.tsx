@@ -36,7 +36,7 @@ export default function PrivyClaimProvider({ children, onCrash }: Props) {
         appId={APP_ID}
         config={{
           appearance: { theme: "dark", accentColor: "#ffffff" },
-          loginMethods: ["email"],
+          loginMethods: ["email", "google"],
           embeddedWallets: { solana: { createOnLogin: "users-without-wallets" } },
         }}
       >
