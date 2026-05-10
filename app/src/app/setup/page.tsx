@@ -5,7 +5,7 @@ import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapte
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
-import { getProgram, registerVault, cancelVault, forceCloseVault, fetchVaultConfig, vaultConfigExists, BeneficiaryInput } from "@/lib/afterlife";
+import { getProgram, registerVault, cancelVault, forceCloseVault, forceExpire, fetchVaultConfig, vaultConfigExists, BeneficiaryInput } from "@/lib/afterlife";
 import { wrapAndApproveSOL } from "@/lib/delegate";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -212,6 +212,11 @@ function SetupContent() {
         return { emailHash: Array.from(new Uint8Array(hashBuffer)), shareBps: Math.round(r.share * 100) };
       }));
       await registerVault(program, publicKey, bens, isTestInterval ? 30 : effectiveInterval, gracePeriodDays, backendAuthority);
+      // In test mode: pre-expire the vault now (while owner is still "alive" and signing)
+      // so the dashboard countdown runs with zero popups
+      if (isTestInterval) {
+        await forceExpire(program, publicKey);
+      }
       sessionStorage.setItem(
         `afterlife_heirs_${publicKey.toBase58()}`,
         JSON.stringify(rows.map(r => ({ email: r.email.trim(), name: r.name.trim(), share: r.share })))

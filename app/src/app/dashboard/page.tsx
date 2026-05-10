@@ -216,20 +216,16 @@ function DashboardContent() {
     }
   }, [loadVault, isDemo, publicKey]);
 
-  // Auto-execute protocol when demo countdown reaches zero — 1 popup (forceExpire), then keeper
+  // Auto-execute protocol when demo countdown reaches zero — keeper signs server-side (no popup)
+  // forceExpire was already called during setup in test mode
   useEffect(() => {
-    if (!demoCountdownEnd || autoExecuting || !publicKey || !wallet) return;
+    if (!demoCountdownEnd || autoExecuting || !publicKey) return;
     if (Date.now() < demoCountdownEnd) return;
     setAutoExecuting(true);
     setDemoCountdownEnd(null); // clear synchronously before async to prevent re-triggering
     (async () => {
       try {
-        // Step 1: force-expire requires owner signature (1 Phantom popup)
-        const provider = new AnchorProvider(connection, wallet, {});
-        const program = getProgram(provider);
-        await forceExpire(program, publicKey);
-
-        // Step 2: keeper executes distribution server-side (no popup)
+        // Keeper executes distribution server-side (no popup — vault pre-expired at setup)
         const res = await fetch("/api/execute-distribution", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -279,7 +275,7 @@ function DashboardContent() {
       }
       finally { setAutoExecuting(false); }
     })();
-  }, [tick, demoCountdownEnd, autoExecuting, publicKey, wallet, connection, loadVault, heirEmails]);
+  }, [tick, demoCountdownEnd, autoExecuting, publicKey, loadVault, heirEmails]);
 
   async function handleCheckin() {
     if (isDemo) {
