@@ -174,7 +174,7 @@ function DashboardContent() {
   const [demoCountdownEnd, setDemoCountdownEnd] = useState<number | null>(null);
   const [autoExecuting, setAutoExecuting] = useState(false);
   const [autoExecError, setAutoExecError] = useState("");
-  const [emailSent, setEmailSent] = useState(false);
+  const [emailSent, setEmailSent] = useState<string[]>([]);
   const [authorizing, setAuthorizing] = useState(false);
   const [authMsg, setAuthMsg] = useState("");
   const [heirEmails, setHeirEmails] = useState<{ email: string; name: string; share: number }[]>([]);
@@ -269,7 +269,7 @@ function DashboardContent() {
             const msgs = failed.map(r => (r as PromiseRejectedResult).reason?.message ?? "unknown").join(", ");
             setAutoExecError(`Distribution executed. Some emails failed: ${msgs}`);
           }
-          setEmailSent(true);
+          setEmailSent(heirs.map(h => h.email));
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -383,7 +383,7 @@ function DashboardContent() {
             }),
           })
         ));
-        setEmailSent(true);
+        setEmailSent(heirs.map(h => h.email));
       }
       setSimMsg("Done");
     } catch (e) { setSimMsg("Error: " + (e instanceof Error ? e.message : String(e))); }
@@ -592,9 +592,9 @@ function DashboardContent() {
                   </p>
                 )}
 
-                {emailSent && (
+                {emailSent.length > 0 && (
                   <p className="mt-4 text-xs text-green-400/60">
-                    ✓ Heir notified by email
+                    ✓ Email sent to: {emailSent.join(", ")}
                   </p>
                 )}
 
