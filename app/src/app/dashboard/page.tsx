@@ -247,11 +247,15 @@ function DashboardContent() {
         if (!sig) throw new Error("Vault did not expire in time");
 
         await loadVault();
-        const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
-        if (!stored) {
-          setAutoExecError("Distribution executed on-chain, but heir emails not found in this session. Emails were not sent.");
+        const heirs = heirEmails.length > 0
+          ? heirEmails
+          : (() => {
+              const s = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
+              return s ? JSON.parse(s) as { email: string; name: string; share: number }[] : [];
+            })();
+        if (heirs.length === 0) {
+          setAutoExecError("Distribution executed on-chain, but heir emails not found. Emails were not sent.");
         } else {
-          const heirs: { email: string; name: string; share: number }[] = JSON.parse(stored);
           const origin = window.location.origin;
           const results = await Promise.allSettled(heirs.map((h, idx) =>
             fetch("/api/send-email", {
@@ -279,7 +283,7 @@ function DashboardContent() {
       }
       finally { setAutoExecuting(false); }
     })();
-  }, [tick, demoCountdownEnd, autoExecuting, publicKey, loadVault]);
+  }, [tick, demoCountdownEnd, autoExecuting, publicKey, loadVault, heirEmails]);
 
   async function handleCheckin() {
     if (isDemo) {
