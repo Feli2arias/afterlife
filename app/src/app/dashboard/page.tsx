@@ -11,7 +11,7 @@ import {
   Copy, Fingerprint, Wallet, Clock, TerminalSquare,
 } from "lucide-react";
 import {
-  getProgram, fetchVaultConfig, forceExpire, executeDistribution,
+  getProgram, fetchVaultConfig, forceExpire,
   cancelVault, registerVault, checkin, BeneficiaryInput,
 } from "@/lib/afterlife";
 import { wrapAndApproveSOL } from "@/lib/delegate";
@@ -216,18 +216,23 @@ function DashboardContent() {
     }
   }, [loadVault, isDemo, publicKey]);
 
-  // Auto-execute protocol when 1-min demo countdown reaches zero
+  // Auto-execute protocol when demo countdown reaches zero — keeper signs server-side (no popup)
   useEffect(() => {
-    if (!demoCountdownEnd || autoExecuting || !publicKey || !wallet) return;
+    if (!demoCountdownEnd || autoExecuting || !publicKey) return;
     if (Date.now() < demoCountdownEnd) return;
     setAutoExecuting(true);
-    setDemoCountdownEnd(null); // clear before async work to prevent re-triggering
+    setDemoCountdownEnd(null); // clear synchronously before async to prevent re-triggering
     (async () => {
       try {
-        const provider = new AnchorProvider(connection, wallet, {});
-        const program = getProgram(provider);
-        await forceExpire(program, publicKey);
-        await executeDistribution(program, publicKey, publicKey);
+        const res = await fetch("/api/execute-distribution", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ownerAddress: publicKey.toBase58() }),
+        });
+        if (!res.ok) {
+          const { error } = await res.json();
+          throw new Error(error ?? "execute-distribution failed");
+        }
         await loadVault();
         const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
         if (stored) {
@@ -254,7 +259,7 @@ function DashboardContent() {
       }
       finally { setAutoExecuting(false); }
     })();
-  }, [tick, demoCountdownEnd, autoExecuting, publicKey, wallet, connection, loadVault]);
+  }, [tick, demoCountdownEnd, autoExecuting, publicKey, loadVault]);
 
   async function handleCheckin() {
     if (isDemo) {
@@ -332,7 +337,15 @@ function DashboardContent() {
       setSimMsg("Backdating timer...");
       await forceExpire(program, publicKey);
       setSimMsg("Executing distribution...");
-      await executeDistribution(program, publicKey, publicKey);
+      const execRes = await fetch("/api/execute-distribution", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerAddress: publicKey.toBase58() }),
+      });
+      if (!execRes.ok) {
+        const { error } = await execRes.json();
+        throw new Error(error ?? "execute-distribution failed");
+      }
       await loadVault();
       const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
       if (stored) {
