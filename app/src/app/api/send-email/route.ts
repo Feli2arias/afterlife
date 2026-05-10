@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 export interface HeirEmailPayload {
   to: string;
@@ -189,29 +189,26 @@ function buildEmailHtml(p: HeirEmailPayload): string {
 }
 
 export async function POST(req: NextRequest) {
-  const smtpPass = process.env.GMAIL_APP_PASSWORD;
-  const smtpUser = process.env.GMAIL_USER;
-  if (!smtpPass || !smtpUser) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
     return NextResponse.json({ error: "Email service not configured" }, { status: 503 });
   }
 
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: smtpUser, pass: smtpPass },
-  });
+  const resend = new Resend(apiKey);
 
   try {
     const payload: HeirEmailPayload = await req.json();
 
-    const info = await transporter.sendMail({
-      from: `"Afterlife Protocol" <${smtpUser}>`,
+    const { error } = await resend.emails.send({
+      from: "Afterlife Protocol <onboarding@resend.dev>",
       to: payload.to,
       subject: `${payload.name ? payload.name + ", your" : "Your"} Afterlife inheritance is ready to claim`,
-      text: `Hi ${payload.name ?? ""},\n\nYou have been added as a beneficiary on Afterlife, a decentralized inheritance protocol on Solana.\n\nYour share: ${payload.share}%\nClaim your assets here: ${payload.claimUrl}\n\n— Afterlife Protocol`,
       html: buildEmailHtml(payload),
     });
 
-    return NextResponse.json({ id: info.messageId });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
