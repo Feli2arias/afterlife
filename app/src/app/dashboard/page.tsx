@@ -224,15 +224,28 @@ function DashboardContent() {
     setDemoCountdownEnd(null); // clear synchronously before async to prevent re-triggering
     (async () => {
       try {
-        const res = await fetch("/api/execute-distribution", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ownerAddress: publicKey.toBase58() }),
-        });
-        if (!res.ok) {
+        // Retry up to 20 times (60s) in case of on-chain clock drift
+        let sig: string | null = null;
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const res = await fetch("/api/execute-distribution", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerAddress: publicKey.toBase58() }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            sig = data.signature;
+            break;
+          }
           const { error } = await res.json();
+          if (error?.includes("TimerNotExpired")) {
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
           throw new Error(error ?? "execute-distribution failed");
         }
+        if (!sig) throw new Error("Vault did not expire in time");
+
         await loadVault();
         const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
         if (stored) {
