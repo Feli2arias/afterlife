@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 export interface HeirEmailPayload {
   to: string;
@@ -189,24 +189,26 @@ function buildEmailHtml(p: HeirEmailPayload): string {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
+  const smtpUser = process.env.GMAIL_USER;
+  const smtpPass = process.env.GMAIL_APP_PASSWORD;
+  if (!smtpUser || !smtpPass) {
     return NextResponse.json({ error: "Email service not configured" }, { status: 503 });
   }
 
-  const resend = new Resend(apiKey);
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: smtpUser, pass: smtpPass },
+  });
 
   try {
     const payload: HeirEmailPayload = await req.json();
 
-    const { error } = await resend.emails.send({
-      from: "Afterlife Protocol <onboarding@resend.dev>",
+    await transporter.sendMail({
+      from: `"Afterlife Protocol" <${smtpUser}>`,
       to: payload.to,
       subject: `${payload.name ? payload.name + ", your" : "Your"} Afterlife inheritance is ready to claim`,
       html: buildEmailHtml(payload),
     });
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ ok: true });
   } catch (e) {
