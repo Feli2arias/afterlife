@@ -42,11 +42,18 @@ export async function wrapAndApproveSOL(
     );
   }
 
+  // Check existing wSOL balance so approval covers the full post-wrap total
+  let existingBalance = 0n;
+  try {
+    const acct = await getAccount(connection, wsolAta);
+    existingBalance = acct.amount;
+  } catch { /* account doesn't exist yet */ }
+
   tx.add(
     SystemProgram.transfer({ fromPubkey: owner, toPubkey: wsolAta, lamports })
   );
   tx.add(createSyncNativeInstruction(wsolAta));
-  tx.add(createApproveInstruction(wsolAta, vaultConfigPda, owner, lamports));
+  tx.add(createApproveInstruction(wsolAta, vaultConfigPda, owner, existingBalance + lamports));
 
   const { blockhash } = await connection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
