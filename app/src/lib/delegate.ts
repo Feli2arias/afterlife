@@ -10,7 +10,7 @@ import {
   NATIVE_MINT,
   getAccount,
 } from "@solana/spl-token";
-import { getVaultConfigPda } from "./vigil";
+import { getVaultConfigPda } from "./afterlife";
 
 export const WSOL_MINT = NATIVE_MINT;
 
