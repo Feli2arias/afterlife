@@ -6,7 +6,7 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getAssociatedTokenAddress, NATIVE_MINT, getAccount } from "@solana/spl-token";
-import { getProgram, fetchVaultConfig } from "@/lib/vigil";
+import { getProgram, fetchVaultConfig } from "@/lib/afterlife";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useCreateWallet, useExportWallet } from "@privy-io/react-auth/solana";
@@ -250,7 +250,7 @@ function ClaimContent({
           {/* Logo */}
           <div style={{ textAlign: "center", marginBottom: 40 }}>
             <div style={{ width: 48, height: 48, margin: "0 auto", borderRadius: 16, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <img src="/logo.png" alt="Vigil" style={{ width: 28, height: 28, objectFit: "contain" }} />
+              <img src="/logo.png" alt="Afterlife" style={{ width: 28, height: 28, objectFit: "contain" }} />
             </div>
           </div>
 
@@ -261,7 +261,7 @@ function ClaimContent({
               <motion.div key="landing" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.4 }}>
                 <div style={{ textAlign: "center", marginBottom: 40 }}>
                   <p style={{ margin: "0 0 16px", fontSize: 11, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.2)", fontFamily: MONO }}>
-                    VIGIL · Decentralized Inheritance
+                    AFTERLIFE · Decentralized Inheritance
                   </p>
                   <h1 style={{ margin: "0 0 16px", fontSize: 38, fontWeight: 300, letterSpacing: "-0.03em", lineHeight: 1.15, color: "rgba(255,255,255,0.92)" }}>
                     You have an<br />inheritance waiting.
@@ -296,7 +296,7 @@ function ClaimContent({
                 </button>
 
                 <p style={{ textAlign: "center", margin: "16px 0 0", fontSize: 12, color: "rgba(255,255,255,0.15)", lineHeight: 1.6 }}>
-                  Secured by the Vigil smart contract on Solana.<br />No lawyers. No banks. No waiting.
+                  Secured by the Afterlife smart contract on Solana.<br />No lawyers. No banks. No waiting.
                 </p>
               </motion.div>
             )}
@@ -598,7 +598,7 @@ function ClaimedScreen({ amount, address, walletPath, privyEmail, onExportWallet
       </motion.div>
 
       <p style={{ textAlign: "center", margin: 0, fontSize: 11, color: "rgba(255,255,255,0.1)", lineHeight: 1.7, fontFamily: MONO }}>
-        Vigil · Decentralized Inheritance on Solana
+        Afterlife · Decentralized Inheritance on Solana
       </p>
     </motion.div>
   );
@@ -690,7 +690,7 @@ function ClaimCard({
               style={{ width: "100%", padding: "12px 14px", borderRadius: 12, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "white", fontSize: 14, fontFamily: SF, outline: "none", boxSizing: "border-box" }}
             />
             <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.2)", fontFamily: SF }}>
-              Must match the email your benefactor used when setting up Vigil
+              Must match the email your benefactor used when setting up Afterlife
             </p>
           </div>
         )}
@@ -711,7 +711,7 @@ function ClaimCard({
       </div>
 
       <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.15)", lineHeight: 1.6, margin: "0 0 8px", fontFamily: SF }}>
-        No gas needed — transaction signed by Vigil protocol
+        No gas needed — transaction signed by Afterlife protocol
       </p>
       <div style={{ textAlign: "center" }}>
         <button onClick={onDisconnect} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.15)", fontSize: 12, cursor: "pointer", fontFamily: SF }}>

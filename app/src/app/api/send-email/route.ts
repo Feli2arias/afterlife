@@ -204,10 +204,10 @@ export async function POST(req: NextRequest) {
     const payload: HeirEmailPayload = await req.json();
 
     const info = await transporter.sendMail({
-      from: `"Vigil Protocol" <${smtpUser}>`,
+      from: `"Afterlife Protocol" <${smtpUser}>`,
       to: payload.to,
-      subject: `${payload.name ? payload.name + ", your" : "Your"} Vigil inheritance is ready to claim`,
-      text: `Hi ${payload.name ?? ""},\n\nYou have been added as a beneficiary on Vigil, a decentralized inheritance protocol on Solana.\n\nYour share: ${payload.share}%\nClaim your assets here: ${payload.claimUrl}\n\n— Vigil Protocol`,
+      subject: `${payload.name ? payload.name + ", your" : "Your"} Afterlife inheritance is ready to claim`,
+      text: `Hi ${payload.name ?? ""},\n\nYou have been added as a beneficiary on Afterlife, a decentralized inheritance protocol on Solana.\n\nYour share: ${payload.share}%\nClaim your assets here: ${payload.claimUrl}\n\n— Afterlife Protocol`,
       html: buildEmailHtml(payload),
     });
 

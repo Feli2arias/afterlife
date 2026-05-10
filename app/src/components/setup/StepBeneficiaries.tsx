@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { BeneficiaryInput } from "@/lib/vigil";
+import { BeneficiaryInput } from "@/lib/afterlife";
 
 interface Props {
   onNext: (beneficiaries: BeneficiaryInput[]) => void;

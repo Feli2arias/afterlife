@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { useRouter } from "next/navigation";
-import { getProgram, fetchVaultConfig } from "@/lib/vigil";
+import { getProgram, fetchVaultConfig } from "@/lib/afterlife";
 
 // ─── Smart CTA hook ───────────────────────────────────────────────────────────
 function useSmartCta() {

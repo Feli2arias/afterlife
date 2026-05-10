@@ -51,7 +51,7 @@ export function TimerCard({ lastCheckin, intervalDays, gracePeriodDays }: Props)
           ))}
         </div>
       ) : (
-        <div className="text-red-400 text-lg font-semibold">Tu Vigil ha expirado</div>
+        <div className="text-red-400 text-lg font-semibold">Tu Afterlife ha expirado</div>
       )}
 
       <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">

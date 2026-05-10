@@ -61,7 +61,7 @@ export function StepDelegates({ onNext, onBack }: Props) {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold">Autorizá los activos</h2>
-        <p className="text-gray-400 text-sm mt-2">Tus activos siguen en tu wallet. Vigil solo tiene permiso de distribuirlos si el trigger se activa.</p>
+        <p className="text-gray-400 text-sm mt-2">Tus activos siguen en tu wallet. Afterlife solo tiene permiso de distribuirlos si el trigger se activa.</p>
       </div>
 
       {error && (

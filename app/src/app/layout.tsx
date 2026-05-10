@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import ClientProviders from "@/components/ClientProviders";
-import PreviewBar from "@/components/PreviewBar";
 
 const geist = Geist({ subsets: ["latin"] });
 
@@ -17,7 +16,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${geist.className} bg-[#0a0a0a] text-white`}>
         <ClientProviders>
           {children}
-          <PreviewBar />
         </ClientProviders>
       </body>
     </html>

@@ -13,7 +13,7 @@ import {
 import {
   getProgram, fetchVaultConfig, forceExpire, executeDistribution,
   cancelVault, registerVault, checkin, BeneficiaryInput,
-} from "@/lib/vigil";
+} from "@/lib/afterlife";
 import { wrapAndApproveSOL } from "@/lib/delegate";
 import { Transaction } from "@solana/web3.js";
 import { useRouter, useSearchParams } from "next/navigation";

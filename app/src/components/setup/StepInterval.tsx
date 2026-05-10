@@ -20,7 +20,7 @@ export function StepInterval({ onNext, onBack }: Props) {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold">¿Con qué frecuencia confirmás?</h2>
-        <p className="text-gray-400 text-sm mt-2">Si no hacés check-in dentro de este período, Vigil distribuirá tus activos.</p>
+        <p className="text-gray-400 text-sm mt-2">Si no hacés check-in dentro de este período, Afterlife distribuirá tus activos.</p>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

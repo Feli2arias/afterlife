@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { getProgram, checkin } from "@/lib/vigil";
+import { getProgram, checkin } from "@/lib/afterlife";
 
 interface Props {
   onSuccess: () => void;

@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-vigil = "4pKCmz43y8apgNqoAZVhYba11r5MyW6fiDnH3WGb16Uu"
+afterlife = "4pKCmz43y8apgNqoAZVhYba11r5MyW6fiDnH3WGb16Uu"
 
 [provider]
 cluster = "localnet"

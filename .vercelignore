@@ -1,0 +1,13 @@
+target/
+node_modules/
+.next/
+.anchor/
+migrations/
+programs/
+keeper/
+docs/
+/Cargo.lock
+/Cargo.toml
+/rust-toolchain.toml
+/package.json
+/tsconfig.json

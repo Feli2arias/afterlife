@@ -5,7 +5,7 @@ import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapte
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
-import { getProgram, registerVault, cancelVault, forceCloseVault, fetchVaultConfig, vaultConfigExists, BeneficiaryInput } from "@/lib/vigil";
+import { getProgram, registerVault, cancelVault, forceCloseVault, fetchVaultConfig, vaultConfigExists, BeneficiaryInput } from "@/lib/afterlife";
 import { wrapAndApproveSOL } from "@/lib/delegate";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
