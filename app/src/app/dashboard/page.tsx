@@ -216,35 +216,31 @@ function DashboardContent() {
     }
   }, [loadVault, isDemo, publicKey]);
 
-  // Auto-execute protocol when demo countdown reaches zero — keeper signs server-side (no popup)
+  // Auto-execute protocol when demo countdown reaches zero — 1 popup (forceExpire), then keeper
   useEffect(() => {
-    if (!demoCountdownEnd || autoExecuting || !publicKey) return;
+    if (!demoCountdownEnd || autoExecuting || !publicKey || !wallet) return;
     if (Date.now() < demoCountdownEnd) return;
     setAutoExecuting(true);
     setDemoCountdownEnd(null); // clear synchronously before async to prevent re-triggering
     (async () => {
       try {
-        // Retry up to 20 times (60s) in case of on-chain clock drift
-        let sig: string | null = null;
-        for (let attempt = 0; attempt < 20; attempt++) {
-          const res = await fetch("/api/execute-distribution", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ownerAddress: publicKey.toBase58() }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            sig = data.signature;
-            break;
-          }
+        // Step 1: force-expire requires owner signature (1 Phantom popup)
+        const provider = new AnchorProvider(connection, wallet, {});
+        const program = getProgram(provider);
+        await forceExpire(program, publicKey);
+
+        // Step 2: keeper executes distribution server-side (no popup)
+        const res = await fetch("/api/execute-distribution", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ownerAddress: publicKey.toBase58() }),
+        });
+        if (!res.ok) {
           const { error } = await res.json();
-          if (error?.includes("TimerNotExpired")) {
-            await new Promise(r => setTimeout(r, 3000));
-            continue;
-          }
           throw new Error(error ?? "execute-distribution failed");
         }
-        if (!sig) throw new Error("Vault did not expire in time");
+        const { signature: sig } = await res.json();
+        if (!sig) throw new Error("execute-distribution returned no signature");
 
         await loadVault();
         const heirs = heirEmails.length > 0
@@ -283,7 +279,7 @@ function DashboardContent() {
       }
       finally { setAutoExecuting(false); }
     })();
-  }, [tick, demoCountdownEnd, autoExecuting, publicKey, loadVault, heirEmails]);
+  }, [tick, demoCountdownEnd, autoExecuting, publicKey, wallet, connection, loadVault, heirEmails]);
 
   async function handleCheckin() {
     if (isDemo) {
