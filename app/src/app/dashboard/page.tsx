@@ -248,10 +248,12 @@ function DashboardContent() {
 
         await loadVault();
         const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
-        if (stored) {
+        if (!stored) {
+          setAutoExecError("Distribution executed on-chain, but heir emails not found in this session. Emails were not sent.");
+        } else {
           const heirs: { email: string; name: string; share: number }[] = JSON.parse(stored);
           const origin = window.location.origin;
-          await Promise.allSettled(heirs.map((h, idx) =>
+          const results = await Promise.allSettled(heirs.map((h, idx) =>
             fetch("/api/send-email", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -260,8 +262,13 @@ function DashboardContent() {
                 ownerAddress: publicKey.toBase58(),
                 claimUrl: `${origin}/claim/${publicKey.toBase58()}?heir=${idx}`,
               }),
-            })
+            }).then(r => { if (!r.ok) throw new Error(`Email to ${h.email} failed`); })
           ));
+          const failed = results.filter(r => r.status === "rejected");
+          if (failed.length > 0) {
+            const msgs = failed.map(r => (r as PromiseRejectedResult).reason?.message ?? "unknown").join(", ");
+            setAutoExecError(`Distribution executed. Some emails failed: ${msgs}`);
+          }
           setEmailSent(true);
         }
       } catch (e) {
