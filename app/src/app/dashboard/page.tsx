@@ -375,7 +375,7 @@ function DashboardContent() {
       const testKey = `afterlife_test_30s_${publicKey.toBase58()}`;
       if (sessionStorage.getItem(testKey)) {
         sessionStorage.removeItem(testKey);
-        setDemoCountdownEnd(Date.now() + 15_000);
+        setDemoCountdownEnd(Date.now() + 5_000);
       }
     }
     if (isDemo) {
@@ -456,7 +456,7 @@ function DashboardContent() {
     // The vault is pre-expired (forceExpire ran at setup); calling checkin
     // would un-expire it and the next auto-execute would fail.
     if (demoCountdownEnd !== null) {
-      setDemoCountdownEnd(Date.now() + 15_000);
+      setDemoCountdownEnd(Date.now() + 5_000);
       setAutoExecError("");
       setHasPinged(true);
       setTimeout(() => setHasPinged(false), 3000);
