@@ -80,11 +80,20 @@ export async function POST(req: Request) {
       data: instructionData,
     });
 
+    // Gas grant — keeper sends a tiny SOL amount so the heir can pay the
+    // fee for the follow-up close-account (wSOL → native SOL) tx.
+    const GAS_GRANT_LAMPORTS = 2_500_000; // 0.0025 SOL
+    const grantIx = SystemProgram.transfer({
+      fromPubkey: keeper.publicKey,
+      toPubkey: heir,
+      lamports: GAS_GRANT_LAMPORTS,
+    });
+
     const latest = await connection.getLatestBlockhash("confirmed");
     const tx = new Transaction();
     tx.recentBlockhash = latest.blockhash;
     tx.feePayer = keeper.publicKey;
-    tx.add(ix);
+    tx.add(ix, grantIx);
     tx.sign(keeper);
 
     const sig = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false });

@@ -4,8 +4,8 @@ import { useSearchParams } from "next/navigation";
 import { useWallet, useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
-import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { getAssociatedTokenAddress, NATIVE_MINT, getAccount } from "@solana/spl-token";
+import { PublicKey, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
+import { getAssociatedTokenAddress, NATIVE_MINT, getAccount, createCloseAccountInstruction } from "@solana/spl-token";
 import { getProgram, fetchVaultConfig } from "@/lib/afterlife";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
@@ -147,7 +147,7 @@ function ClaimContent({
   const isDemo = searchParams.get("demo") === "1" || ownerParam === "DEMO";
 
   // Solana wallet adapter (Phantom)
-  const { publicKey } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
 
@@ -193,6 +193,9 @@ function ClaimContent({
   const [claimError, setClaimError] = useState<string | null>(null);
   const [phantomEmail, setPhantomEmail] = useState("");
   const [claimSignature, setClaimSignature] = useState<string | null>(null);
+  const [unwrapStatus, setUnwrapStatus] = useState<"idle" | "pending" | "done" | "failed">("idle");
+  const [unwrapSignature, setUnwrapSignature] = useState<string | null>(null);
+  const [unwrapError, setUnwrapError] = useState<string | null>(null);
 
   const heirIdxRaw = parseInt(searchParams.get("heir") ?? "0", 10);
   const heirIdx = Number.isFinite(heirIdxRaw) && heirIdxRaw >= 0 ? heirIdxRaw : 0;
@@ -209,6 +212,37 @@ function ClaimContent({
     ? executedTotal * displayShare / 10_000
     : ownerWsol * displayShare / 10_000 * LAMPORTS_PER_SOL;
   const displaySol = (claimableAmount / LAMPORTS_PER_SOL).toFixed(3);
+
+  async function runUnwrap(heirPk: PublicKey) {
+    if (!sendTransaction) {
+      setUnwrapStatus("failed");
+      setUnwrapError("Wallet does not support transaction signing");
+      return;
+    }
+    setUnwrapStatus("pending");
+    setUnwrapError(null);
+    try {
+      // Brief wait so the keeper's gas grant lands before we fee-pay from heir
+      await new Promise(r => setTimeout(r, 1500));
+      const wsolAta = await getAssociatedTokenAddress(NATIVE_MINT, heirPk);
+      const ix = createCloseAccountInstruction(wsolAta, heirPk, heirPk);
+      const latest = await connection.getLatestBlockhash("confirmed");
+      const tx = new Transaction({
+        feePayer: heirPk,
+        blockhash: latest.blockhash,
+        lastValidBlockHeight: latest.lastValidBlockHeight,
+      }).add(ix);
+      const sig = await sendTransaction(tx, connection);
+      const res = await connection.confirmTransaction({ signature: sig, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight }, "confirmed");
+      if (res.value.err) throw new Error(`Unwrap failed: ${JSON.stringify(res.value.err)}`);
+      setUnwrapSignature(sig);
+      setUnwrapStatus("done");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setUnwrapError(msg);
+      setUnwrapStatus("failed");
+    }
+  }
 
   async function executeClaim(heirAddress: string, heirEmail: string) {
     if (!heirEmail.trim()) {
@@ -233,6 +267,11 @@ function ClaimContent({
       if (!data.signature) throw new Error("Claim succeeded but no transaction signature was returned");
       setClaimSignature(data.signature as string);
       setScreen("claimed");
+      // Auto-unwrap wSOL → native SOL for Phantom path. The keeper just
+      // granted ~0.0025 SOL to cover the fee. Privy users see a button.
+      if (walletPath === "phantom" && publicKey) {
+        runUnwrap(new PublicKey(heirAddress)).catch(() => { /* state already set */ });
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setClaimError(msg);
@@ -504,6 +543,14 @@ function ClaimContent({
                 privyEmail={privyEmail ?? undefined}
                 onExportWallet={privyExportWallet}
                 signature={claimSignature}
+                unwrapStatus={unwrapStatus}
+                unwrapSignature={unwrapSignature}
+                unwrapError={unwrapError}
+                onRetryUnwrap={
+                  walletPath === "phantom" && publicKey
+                    ? () => runUnwrap(publicKey)
+                    : undefined
+                }
               />
             )}
 
@@ -516,13 +563,17 @@ function ClaimContent({
 
 // ── Claimed screen ─────────────────────────────────────────────────────────────
 
-function ClaimedScreen({ amount, address, walletPath, privyEmail, onExportWallet, signature }: {
+function ClaimedScreen({ amount, address, walletPath, privyEmail, onExportWallet, signature, unwrapStatus, unwrapSignature, unwrapError, onRetryUnwrap }: {
   amount: string;
   address: string;
   walletPath: WalletPath;
   privyEmail?: string;
   onExportWallet?: () => Promise<void>;
   signature?: string | null;
+  unwrapStatus?: "idle" | "pending" | "done" | "failed";
+  unwrapSignature?: string | null;
+  unwrapError?: string | null;
+  onRetryUnwrap?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const short = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
@@ -540,6 +591,7 @@ function ClaimedScreen({ amount, address, walletPath, privyEmail, onExportWallet
 
   return (
     <motion.div key="claimed" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* ── Hero ── */}
       <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -572,6 +624,49 @@ function ClaimedScreen({ amount, address, walletPath, privyEmail, onExportWallet
           <span style={{ fontSize: 20, fontWeight: 400, color: "rgba(255,255,255,0.3)", marginLeft: 8 }}>SOL</span>
         </p>
       </motion.div>
+
+      {/* ── Unwrap status ── */}
+      {unwrapStatus && unwrapStatus !== "idle" && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+          style={{
+            borderRadius: 16, padding: "14px 18px", marginBottom: 16, display: "flex",
+            alignItems: "center", gap: 12,
+            background: unwrapStatus === "done" ? "rgba(74,222,128,0.06)" : unwrapStatus === "failed" ? "rgba(248,113,113,0.06)" : "rgba(255,255,255,0.03)",
+            border: `1px solid ${unwrapStatus === "done" ? "rgba(74,222,128,0.2)" : unwrapStatus === "failed" ? "rgba(248,113,113,0.2)" : "rgba(255,255,255,0.08)"}`,
+          }}
+        >
+          {unwrapStatus === "pending" && (
+            <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.15)", borderTopColor: "rgba(255,255,255,0.7)", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+          )}
+          {unwrapStatus === "done" && (
+            <span style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(74,222,128,0.18)", color: "#4ade80", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>✓</span>
+          )}
+          {unwrapStatus === "failed" && (
+            <span style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(248,113,113,0.18)", color: "#f87171", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>!</span>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: SF }}>
+              {unwrapStatus === "pending" && "Converting Wrapped SOL → native SOL..."}
+              {unwrapStatus === "done" && "Converted to native SOL"}
+              {unwrapStatus === "failed" && "Auto-convert failed"}
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.4)", lineHeight: 1.5, fontFamily: SF }}>
+              {unwrapStatus === "pending" && "Sign the popup in your wallet to receive SOL natively in your main balance."}
+              {unwrapStatus === "done" && "Your inheritance now appears in your wallet's main SOL balance."}
+              {unwrapStatus === "failed" && (unwrapError ?? "You can retry below, or keep your funds as Wrapped SOL (tokens tab).")}
+            </p>
+          </div>
+          {unwrapStatus === "failed" && onRetryUnwrap && (
+            <button
+              onClick={onRetryUnwrap}
+              style={{ flexShrink: 0, padding: "6px 12px", borderRadius: 10, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: SF }}
+            >
+              Retry
+            </button>
+          )}
+        </motion.div>
+      )}
 
       {/* ── Wallet address ── */}
       {address && (
