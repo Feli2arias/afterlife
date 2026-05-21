@@ -234,14 +234,15 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
 
       <div className="max-w-7xl w-full mx-auto relative z-10 flex pt-10 md:pt-14">
         <motion.div style={{ opacity, y: yText }} className="flex flex-col items-start text-left space-y-8 max-w-2xl">
-          {/* Award laurel — DEV3PACK */}
+          {/* Award laurel + Solana badge — same width, stacked */}
+          <div className="flex flex-col items-stretch gap-3 w-fit mb-6">
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.3 }}
-            className="inline-flex items-center gap-3 -mb-2"
+            className="flex items-center justify-center gap-4 w-full"
           >
-            <svg width="22" height="34" viewBox="0 0 22 34" fill="none" aria-hidden>
+            <svg width="22" height="34" viewBox="0 0 22 34" fill="none" aria-hidden className="flex-shrink-0">
               <path d="M20 2C14 4 8 9 5 16c-3 7-2 12 1 16" stroke="#d4af37" strokeWidth="1.4" strokeLinecap="round" fill="none" />
               <path d="M19 6c-2 .4-4 1.6-5.6 3.6" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
               <path d="M16 11c-2 .4-3.6 1.4-5 3" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
@@ -251,10 +252,10 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
             </svg>
             <div className="flex flex-col items-center leading-tight">
               <span className="text-[9px] font-bold tracking-[0.25em] uppercase text-[#d4af37]/80">Official</span>
-              <span className="text-[13px] font-bold tracking-[0.18em] uppercase text-[#f5d97a]" style={{ textShadow: "0 0 16px rgba(212,175,55,0.35)" }}>dev3pack hackathon</span>
+              <span className="text-[13px] font-bold tracking-[0.18em] uppercase text-[#f5d97a] whitespace-nowrap" style={{ textShadow: "0 0 16px rgba(212,175,55,0.35)" }}>dev3pack hackathon</span>
               <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#f5d97a]/90">Winner</span>
             </div>
-            <svg width="22" height="34" viewBox="0 0 22 34" fill="none" aria-hidden>
+            <svg width="22" height="34" viewBox="0 0 22 34" fill="none" aria-hidden className="flex-shrink-0">
               <path d="M2 2c6 2 12 7 15 14 3 7 2 12-1 16" stroke="#d4af37" strokeWidth="1.4" strokeLinecap="round" fill="none" />
               <path d="M3 6c2 .4 4 1.6 5.6 3.6" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
               <path d="M6 11c2 .4 3.6 1.4 5 3" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
@@ -268,7 +269,7 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 liquid-glass mb-6"
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-full border border-white/10 liquid-glass w-full"
           >
             <div className="flex items-center justify-center w-5 h-5 rounded-full bg-black">
               <svg width="12" height="12" viewBox="0 0 397 311" fill="none">
@@ -279,6 +280,7 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
             </div>
             <span className="text-xs font-mono font-medium tracking-widest uppercase text-[#888]">Built on Solana</span>
           </motion.div>
+          </div>
 
           <div className="space-y-6">
             <motion.h1
