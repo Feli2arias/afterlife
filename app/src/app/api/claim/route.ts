@@ -80,17 +80,25 @@ export async function POST(req: Request) {
       data: instructionData,
     });
 
-    const { blockhash } = await connection.getLatestBlockhash();
+    const latest = await connection.getLatestBlockhash("confirmed");
     const tx = new Transaction();
-    tx.recentBlockhash = blockhash;
+    tx.recentBlockhash = latest.blockhash;
     tx.feePayer = keeper.publicKey;
     tx.add(ix);
     tx.sign(keeper);
 
     const sig = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false });
-    await connection.confirmTransaction(sig, "confirmed");
+    const result = await connection.confirmTransaction(
+      { signature: sig, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
+      "confirmed"
+    );
+    if (result.value.err) {
+      const errMsg = typeof result.value.err === "string" ? result.value.err : JSON.stringify(result.value.err);
+      console.error("[/api/claim] confirmed with error", sig, errMsg);
+      return Response.json({ error: `On-chain claim failed: ${errMsg}`, signature: sig }, { status: 500 });
+    }
 
-    return Response.json({ signature: sig });
+    return Response.json({ signature: sig, heirTokenAccount: heirTokenAccount.toBase58() });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[/api/claim]", msg);

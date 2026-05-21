@@ -192,6 +192,7 @@ function ClaimContent({
 
   const [claimError, setClaimError] = useState<string | null>(null);
   const [phantomEmail, setPhantomEmail] = useState("");
+  const [claimSignature, setClaimSignature] = useState<string | null>(null);
 
   const heirIdxRaw = parseInt(searchParams.get("heir") ?? "0", 10);
   const heirIdx = Number.isFinite(heirIdxRaw) && heirIdxRaw >= 0 ? heirIdxRaw : 0;
@@ -216,6 +217,7 @@ function ClaimContent({
     }
     setClaiming(true);
     setClaimError(null);
+    setClaimSignature(null);
     try {
       const res = await fetch("/api/claim", {
         method: "POST",
@@ -228,6 +230,8 @@ function ClaimContent({
       });
       const data = await res.json().catch(() => ({ error: "Invalid response" }));
       if (!res.ok) throw new Error(data.error ?? "Claim failed");
+      if (!data.signature) throw new Error("Claim succeeded but no transaction signature was returned");
+      setClaimSignature(data.signature as string);
       setScreen("claimed");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -499,6 +503,7 @@ function ClaimContent({
                 walletPath={walletPath}
                 privyEmail={privyEmail ?? undefined}
                 onExportWallet={privyExportWallet}
+                signature={claimSignature}
               />
             )}
 
@@ -511,16 +516,20 @@ function ClaimContent({
 
 // ── Claimed screen ─────────────────────────────────────────────────────────────
 
-function ClaimedScreen({ amount, address, walletPath, privyEmail, onExportWallet }: {
+function ClaimedScreen({ amount, address, walletPath, privyEmail, onExportWallet, signature }: {
   amount: string;
   address: string;
   walletPath: WalletPath;
   privyEmail?: string;
   onExportWallet?: () => Promise<void>;
+  signature?: string | null;
 }) {
   const [copied, setCopied] = useState(false);
   const short = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
-  const solscanUrl = `https://solscan.io/account/${address}?cluster=devnet`;
+  const txUrl = signature
+    ? `https://solscan.io/tx/${signature}?cluster=devnet`
+    : `https://solscan.io/account/${address}?cluster=devnet`;
+  const accountUrl = `https://solscan.io/account/${address}?cluster=devnet`;
 
   function copy() {
     if (!address) return;
@@ -624,21 +633,26 @@ function ClaimedScreen({ amount, address, walletPath, privyEmail, onExportWallet
               num="3"
               title="Check your balance anytime"
               desc="You can verify your funds are there right now — no app needed."
-              link={{ label: "View on Solscan →", href: solscanUrl }}
+              link={{ label: "View account on Solscan →", href: accountUrl }}
             />
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <NextStep
               num="1"
-              title="Open Phantom"
-              desc="Your SOL is already in your Phantom wallet. Open the app and you'll see your updated balance."
+              title="Switch Phantom to Devnet"
+              desc="Click the gear in Phantom → Developer settings → Testnet Mode → ON. Your assets are on Solana Devnet."
             />
             <NextStep
               num="2"
-              title="Check the transaction"
-              desc="You can verify the transfer on the blockchain — it's a public, permanent record."
-              link={{ label: "View on Solscan →", href: solscanUrl }}
+              title="Check 'Tokens' tab in Phantom"
+              desc="Look for 'Wrapped SOL' — that's where your inheritance landed. We'll auto-convert it to native SOL soon."
+            />
+            <NextStep
+              num="3"
+              title="Verify the transaction"
+              desc="Public, permanent record of your inheritance transfer on the Solana blockchain."
+              link={{ label: signature ? "View transaction on Solscan →" : "View account on Solscan →", href: txUrl }}
             />
           </div>
         )}
