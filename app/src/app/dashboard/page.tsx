@@ -284,11 +284,20 @@ function DashboardContent() {
       return;
     }
     if (!publicKey || !wallet) return;
+    // Test mode: re-arm the 30s countdown without touching on-chain.
+    // The vault is pre-expired (forceExpire ran at setup); calling checkin
+    // would un-expire it and the next auto-execute would fail.
+    if (demoCountdownEnd !== null) {
+      setDemoCountdownEnd(Date.now() + 30_000);
+      setAutoExecError("");
+      setHasPinged(true);
+      setTimeout(() => setHasPinged(false), 3000);
+      return;
+    }
     try {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
       await checkin(program, publicKey);
-      setDemoCountdownEnd(null);
       setAutoExecError("");
       setHasPinged(true);
       setTimeout(() => setHasPinged(false), 3000);
