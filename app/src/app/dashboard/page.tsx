@@ -8,7 +8,7 @@ import { getAssociatedTokenAddress, getAccount, NATIVE_MINT } from "@solana/spl-
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity, Users, Settings, ShieldAlert, ArrowUpRight,
-  Copy, Fingerprint, Wallet, Clock, TerminalSquare,
+  Copy, Fingerprint, Wallet, Clock, TerminalSquare, Zap, Shield, TreePine, Sparkles,
 } from "lucide-react";
 import {
   getProgram, fetchVaultConfig, forceExpire,
@@ -17,6 +17,14 @@ import {
 import { wrapAndApproveSOL } from "@/lib/delegate";
 import { Transaction } from "@solana/web3.js";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  type LegacyStrategy,
+  STRATEGY_META,
+  loadStrategy,
+  protectedSchedule,
+  projectGenerational,
+  monthlyPayout,
+} from "@/lib/legacy";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif";
 const MONO = "'SF Mono', 'Fira Code', 'Courier New', monospace";
@@ -145,6 +153,159 @@ function EditBeneficiariesModal({ initialRows, onSave, onClose, loading }: { ini
   );
 }
 
+// ─── Legacy Overview ───────────────────────────────────────────────────────────
+
+function LegacyOverview({ strategy, balance }: { strategy: LegacyStrategy | null; balance: number }) {
+  const s: LegacyStrategy = strategy ?? { kind: "instant" };
+  const meta = STRATEGY_META[s.kind];
+  const Icon = s.kind === "instant" ? Zap : s.kind === "protected" ? Shield : s.kind === "generational" ? TreePine : Sparkles;
+
+  return (
+    <div className="w-full max-w-4xl mx-auto space-y-6">
+      {/* Hero header */}
+      <div className="rounded-3xl border border-white/8 bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-8 overflow-hidden relative">
+        <div
+          className="absolute -top-20 -right-20 w-64 h-64 rounded-full blur-3xl opacity-30"
+          style={{ background: meta.accent }}
+        />
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs uppercase tracking-widest text-white/40">Active Strategy</span>
+          </div>
+          <div className="flex items-start gap-4">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ background: `${meta.accent}22`, color: meta.accent }}
+            >
+              <Icon className="w-7 h-7" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-3xl font-bold tracking-tight text-white" style={{ letterSpacing: "-0.02em" }}>
+                {meta.title}
+              </h2>
+              <p className="text-white/50 mt-2 leading-relaxed max-w-lg">{meta.tagline}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard label="Legacy Vault Balance" value={`${balance.toFixed(4)} SOL`} sub="Protected on-chain" />
+        {s.kind === "instant" && (
+          <>
+            <StatCard label="Distribution" value="100%" sub="On activation" />
+            <StatCard label="Wait time" value="0d" sub="Instant access" />
+          </>
+        )}
+        {s.kind === "protected" && (() => {
+          const sched = protectedSchedule(s, balance);
+          return (
+            <>
+              <StatCard label="Unlock per period" value={`${sched.perUnlock.toFixed(4)} SOL`} sub={`${s.unlockPercent}% ${s.unlockFrequency}`} />
+              <StatCard label="Vesting duration" value={`${s.vestingYears} ${s.vestingYears === 1 ? "yr" : "yrs"}`} sub={`${sched.totalPeriods} total unlocks`} />
+            </>
+          );
+        })()}
+        {s.kind === "generational" && (
+          <>
+            <StatCard label={`${s.payoutFrequency} yield`} value={`${monthlyPayout(s, balance).toFixed(4)} SOL`} sub={`@ ${s.estimatedApy}% APY`} />
+            <StatCard label="10-year projection" value={`${(balance * Math.pow(1 + s.estimatedApy / 100, 10)).toFixed(2)} SOL`} sub="Principal preserved" />
+          </>
+        )}
+        {s.kind === "custom" && (
+          <>
+            <StatCard label="Custom rules" value="Coming soon" sub="Programmable" />
+            <StatCard label="Strategy type" value="Advanced" sub="Post-hackathon" />
+          </>
+        )}
+      </div>
+
+      {/* Visual */}
+      {s.kind === "protected" && (
+        <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6">
+          <h3 className="text-sm font-semibold text-white/80 mb-1">Unlock Schedule</h3>
+          <p className="text-xs text-white/40 mb-5">Beneficiaries receive a fixed portion each period, preserving the rest in the vault.</p>
+          <div className="flex items-end gap-1 h-32">
+            {Array.from({ length: Math.min(24, s.vestingYears * (s.unlockFrequency === "monthly" ? 12 : 4)) }).map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded-t"
+                style={{
+                  height: `${20 + (i % 4) * 5 + 40}%`,
+                  background: `${meta.accent}${i < 4 ? "cc" : i < 8 ? "88" : "55"}`,
+                }}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-white/30 mt-3 text-center">First 24 periods · {s.unlockFrequency}</p>
+        </div>
+      )}
+
+      {s.kind === "generational" && (() => {
+        const points = projectGenerational(s, Math.max(balance, 0.01), 20);
+        const max = points[points.length - 1].value;
+        const min = points[0].value;
+        const w = 600, h = 140;
+        const path = points.map((p, i) => {
+          const x = (i / (points.length - 1)) * w;
+          const y = h - ((p.value - min) / (max - min || 1)) * (h - 10) - 5;
+          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(" ");
+        return (
+          <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6">
+            <h3 className="text-sm font-semibold text-white/80 mb-1">20-Year Growth Projection</h3>
+            <p className="text-xs text-white/40 mb-5">Principal stays locked. Yield is what your family receives.</p>
+            <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: 140 }}>
+              <path d={path} fill="none" stroke={meta.accent} strokeWidth="2" />
+              <path d={`${path} L${w},${h} L0,${h} Z`} fill="url(#legacy-grad)" opacity="0.3" />
+              <defs>
+                <linearGradient id="legacy-grad" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor={meta.accent} />
+                  <stop offset="100%" stopColor={meta.accent} stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="flex justify-between text-xs text-white/30 mt-2">
+              <span>Year 0 · {min.toFixed(2)} SOL</span>
+              <span>Year 10 · {points[10].value.toFixed(2)} SOL</span>
+              <span>Year 20 · {max.toFixed(2)} SOL</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {s.kind === "custom" && (
+        <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.04] p-6">
+          <h3 className="text-sm font-semibold text-amber-300 mb-2">Custom Strategy — Preview</h3>
+          <p className="text-xs text-amber-200/60 leading-relaxed">
+            Programmable inheritance rules: age restrictions, milestone unlocks, education and housing funds, and per-heir custom vesting. Coming after the hackathon.
+          </p>
+        </div>
+      )}
+
+      {s.kind === "instant" && (
+        <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-6">
+          <h3 className="text-sm font-semibold text-emerald-300 mb-2">Immediate Inheritance</h3>
+          <p className="text-xs text-emerald-200/70 leading-relaxed">
+            On activation, beneficiaries receive their full allocation in a single transfer directly to their wallets. No vesting, no delay — your family gets access when they need it most.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
+      <div className="text-xs uppercase tracking-widest text-white/30 mb-2">{label}</div>
+      <div className="text-2xl font-bold text-white tracking-tight" style={{ letterSpacing: "-0.02em" }}>{value}</div>
+      <div className="text-xs text-white/40 mt-1">{sub}</div>
+    </div>
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -162,7 +323,8 @@ function DashboardContent() {
   const [vault, setVault] = useState<VaultData | null>(isDemo ? DEMO_VAULT as unknown as VaultData : null);
   const [loading, setLoading] = useState(!isDemo);
   const [solBal, setSolBal] = useState(isDemo ? 4.237 : 0);
-  const [activeTab, setActiveTab] = useState<"status" | "beneficiaries" | "vault" | "settings">("status");
+  const [activeTab, setActiveTab] = useState<"status" | "legacy" | "beneficiaries" | "vault" | "settings">("status");
+  const [strategy, setStrategy] = useState<LegacyStrategy | null>(null);
   const [hasPinged, setHasPinged] = useState(false);
   const [editInterval, setEditInterval] = useState(false);
   const [editBens, setEditBens] = useState(false);
@@ -208,11 +370,15 @@ function DashboardContent() {
     if (!isDemo && publicKey) {
       const stored = sessionStorage.getItem(`afterlife_heirs_${publicKey.toBase58()}`);
       if (stored) setHeirEmails(JSON.parse(stored));
+      setStrategy(loadStrategy(publicKey.toBase58()));
       const testKey = `afterlife_test_30s_${publicKey.toBase58()}`;
       if (sessionStorage.getItem(testKey)) {
         sessionStorage.removeItem(testKey);
         setDemoCountdownEnd(Date.now() + 30_000);
       }
+    }
+    if (isDemo) {
+      setStrategy({ kind: "generational", estimatedApy: 7, payoutFrequency: "monthly" });
     }
   }, [loadVault, isDemo, publicKey]);
 
@@ -497,7 +663,7 @@ function DashboardContent() {
 
           {/* Tab pills */}
           <div className="flex items-center p-1 border border-white/10 rounded-full bg-white/[0.02] backdrop-blur-md">
-            {(["status", "beneficiaries", "vault", "settings"] as const).map(tab => (
+            {(["status", "legacy", "beneficiaries", "vault", "settings"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -624,6 +790,20 @@ function DashboardContent() {
                     {hasPinged ? "Confirmed" : t.expired ? "Triggered" : "Guarding"}
                   </span>
                 </p>
+              </motion.div>
+            )}
+
+            {/* ── LEGACY ─────────────────────────────────────────────── */}
+            {activeTab === "legacy" && (
+              <motion.div
+                key="legacy"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                className="flex-1 flex flex-col py-12 px-6"
+              >
+                <LegacyOverview strategy={strategy} balance={solBal} />
               </motion.div>
             )}
 

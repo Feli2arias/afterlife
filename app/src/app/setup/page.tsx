@@ -9,7 +9,18 @@ import { getProgram, registerVault, cancelVault, forceCloseVault, forceExpire, f
 import { wrapAndApproveSOL } from "@/lib/delegate";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, ChevronRight, ChevronLeft, Info, Check, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
+import { Plus, X, ChevronRight, ChevronLeft, Info, Check, ArrowRight, ShieldCheck, AlertCircle, Zap, Shield, TreePine, Sparkles } from "lucide-react";
+import {
+  type LegacyStrategy,
+  type LegacyStrategyKind,
+  STRATEGY_META,
+  DEFAULT_PROTECTED,
+  DEFAULT_GENERATIONAL,
+  saveStrategy,
+  protectedSchedule,
+  projectGenerational,
+  monthlyPayout,
+} from "@/lib/legacy";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif";
 const MONO = "'SF Mono', 'Fira Code', 'Courier New', monospace";
@@ -37,7 +48,7 @@ function HintCard({ text, onDismiss }: { text: string; onDismiss: () => void }) 
 // ─── Step progress bar ────────────────────────────────────────────────────────
 
 function StepBar({ current, total }: { current: number; total: number }) {
-  const labels = ["Beneficiaries", "Life Check", "Contact", "Review"];
+  const labels = ["Beneficiaries", "Life Check", "Legacy Strategy", "Contact", "Review"];
   return (
     <div className="mb-12">
       <div className="flex items-center gap-0 mb-4">
@@ -85,7 +96,7 @@ function SetupContent() {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demo") === "1";
 
-  // 0 = wallet connect gate, 1-4 = onboarding steps
+  // 0 = wallet connect gate, 1-5 = onboarding steps
   const [phase, setPhase] = useState(isDemo ? 1 : 0);
 
   // Step 1: beneficiaries
@@ -99,17 +110,22 @@ function SetupContent() {
   const [intervalError, setIntervalError] = useState("");
   const [isTestInterval, setIsTestInterval] = useState(false);
 
-  // Step 3: contact
+  // Step 3: legacy strategy
+  const [strategyKind, setStrategyKind] = useState<LegacyStrategyKind>("instant");
+  const [protectedCfg, setProtectedCfg] = useState(DEFAULT_PROTECTED);
+  const [generationalCfg, setGenerationalCfg] = useState(DEFAULT_GENERATIONAL);
+
+  // Step 4: contact
   const [email, setEmail] = useState("");
   const [backupEmail, setBackupEmail] = useState("");
   const [emailError, setEmailError] = useState("");
 
-  // Step 4: deploy
+  // Step 5: deploy
   const [deploying, setDeploying] = useState(false);
   const [deployError, setDeployError] = useState("");
 
   // Hint visibility
-  const [hints, setHints] = useState({ step1: true, step2: true, step3: true });
+  const [hints, setHints] = useState({ step1: true, step2: true, step3: true, step4: true });
 
   // no auto-advance — user clicks Continue explicitly
 
@@ -156,7 +172,7 @@ function SetupContent() {
     return true;
   }
 
-  function validateStep3(): boolean {
+  function validateStep4(): boolean {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError("Please enter a valid email address");
       return false;
@@ -165,10 +181,18 @@ function SetupContent() {
     return true;
   }
 
+  function buildStrategy(): LegacyStrategy {
+    if (strategyKind === "instant") return { kind: "instant" };
+    if (strategyKind === "protected") return protectedCfg;
+    if (strategyKind === "generational") return generationalCfg;
+    return { kind: "custom" };
+  }
+
   function next() {
     if (phase === 1 && !validateStep1()) return;
     if (phase === 2 && !validateStep2()) return;
-    if (phase === 3 && !validateStep3()) return;
+    // step 3 (legacy strategy) — selection always has a default ("instant"), no validation needed
+    if (phase === 4 && !validateStep4()) return;
     setPhase(p => p + 1);
   }
 
@@ -221,6 +245,7 @@ function SetupContent() {
         `afterlife_heirs_${publicKey.toBase58()}`,
         JSON.stringify(rows.map(r => ({ email: r.email.trim(), name: r.name.trim(), share: r.share })))
       );
+      saveStrategy(publicKey.toBase58(), buildStrategy());
       if (isTestInterval) {
         sessionStorage.setItem(`afterlife_test_30s_${publicKey.toBase58()}`, "true");
       }
@@ -295,13 +320,14 @@ function SetupContent() {
     );
   }
 
-  // ── Steps 1-4 ────────────────────────────────────────────────────────────────
+  // ── Steps 1-5 ────────────────────────────────────────────────────────────────
 
   const STEP_BG = [
     "",
     "radial-gradient(ellipse at 30% 20%, rgba(59,130,246,0.06) 0%, transparent 60%)",
     "radial-gradient(ellipse at 70% 30%, rgba(16,185,129,0.06) 0%, transparent 60%)",
-    "radial-gradient(ellipse at 50% 20%, rgba(168,85,247,0.06) 0%, transparent 60%)",
+    "radial-gradient(ellipse at 50% 25%, rgba(168,85,247,0.07) 0%, transparent 60%)",
+    "radial-gradient(ellipse at 50% 20%, rgba(168,85,247,0.05) 0%, transparent 60%)",
     "radial-gradient(ellipse at 40% 20%, rgba(245,158,11,0.05) 0%, transparent 60%)",
   ];
 
@@ -343,7 +369,7 @@ function SetupContent() {
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             >
-              <StepBar current={phase - 1} total={4} />
+              <StepBar current={phase - 1} total={5} />
 
               {/* ── STEP 1: Beneficiaries ─────────────────────────────────── */}
               {phase === 1 && (
@@ -533,8 +559,226 @@ function SetupContent() {
                 </div>
               )}
 
-              {/* ── STEP 3: Contact & Recovery ────────────────────────────── */}
+              {/* ── STEP 3: Legacy Strategy ──────────────────────────────── */}
               {phase === 3 && (
+                <div>
+                  <h1 className="text-4xl font-bold tracking-tight mb-3" style={{ letterSpacing: "-0.03em" }}>
+                    How will your legacy live on?
+                  </h1>
+                  <p className="text-white/40 mb-8 leading-relaxed">
+                    Choose how your wealth is passed on. From immediate transfer to multi-generational protection — your legacy, your rules.
+                  </p>
+
+                  <AnimatePresence>
+                    {hints.step3 && (
+                      <HintCard
+                        text="Programmable inheritance means you decide HOW, not just WHO. Assets stay in your non-custodial Legacy Vault until released according to your strategy."
+                        onDismiss={() => setHints(h => ({ ...h, step3: false }))}
+                      />
+                    )}
+                  </AnimatePresence>
+
+                  {/* Strategy cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                    {([
+                      { kind: "instant" as const, icon: Zap },
+                      { kind: "protected" as const, icon: Shield },
+                      { kind: "generational" as const, icon: TreePine },
+                      { kind: "custom" as const, icon: Sparkles },
+                    ]).map(({ kind, icon: Icon }) => {
+                      const meta = STRATEGY_META[kind];
+                      const selected = strategyKind === kind;
+                      return (
+                        <button
+                          key={kind}
+                          onClick={() => setStrategyKind(kind)}
+                          className={`relative text-left p-5 rounded-2xl border transition-all overflow-hidden ${
+                            selected
+                              ? "border-white/40 bg-white/[0.06]"
+                              : "border-white/8 bg-white/[0.02] hover:border-white/20"
+                          }`}
+                        >
+                          {kind === "custom" && (
+                            <span className="absolute top-3 right-3 text-[9px] font-bold tracking-widest uppercase border border-amber-500/30 text-amber-400/70 px-2 py-0.5 rounded-full">
+                              Preview
+                            </span>
+                          )}
+                          <div
+                            className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+                            style={{ background: `${meta.accent}1a`, color: meta.accent }}
+                          >
+                            <Icon className="w-5 h-5" />
+                          </div>
+                          <div className="text-base font-bold text-white mb-1">{meta.title}</div>
+                          <div className="text-xs text-white/40 leading-relaxed">{meta.tagline}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Strategy-specific config */}
+                  {strategyKind === "instant" && (
+                    <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-5 mb-8">
+                      <p className="text-sm text-emerald-300/80 leading-relaxed">
+                        <span className="font-semibold text-emerald-300">Immediate access.</span> Beneficiaries can claim their full allocation the moment your Continuity Plan activates. Simple, fast, final.
+                      </p>
+                    </div>
+                  )}
+
+                  {strategyKind === "protected" && (
+                    <div className="space-y-4 mb-8">
+                      <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5 space-y-5">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs uppercase tracking-widest text-white/40">Vesting duration</span>
+                            <span className="text-sm font-bold text-white">{protectedCfg.vestingYears} {protectedCfg.vestingYears === 1 ? "year" : "years"}</span>
+                          </div>
+                          <input
+                            type="range" min={1} max={20} step={1}
+                            value={protectedCfg.vestingYears}
+                            onChange={e => setProtectedCfg(c => ({ ...c, vestingYears: Number(e.target.value) }))}
+                            className="w-full accent-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-xs uppercase tracking-widest text-white/40 block mb-2">Unlock frequency</span>
+                          <div className="grid grid-cols-2 gap-2">
+                            {(["monthly", "quarterly"] as const).map(f => (
+                              <button key={f}
+                                onClick={() => setProtectedCfg(c => ({ ...c, unlockFrequency: f }))}
+                                className={`py-2 rounded-xl text-sm font-medium transition-all border ${
+                                  protectedCfg.unlockFrequency === f
+                                    ? "border-white/30 bg-white/[0.07] text-white"
+                                    : "border-white/8 text-white/40 hover:border-white/15"
+                                }`}>
+                                {f === "monthly" ? "Monthly" : "Quarterly"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs uppercase tracking-widest text-white/40">Unlock per period</span>
+                            <span className="text-sm font-bold text-white">{protectedCfg.unlockPercent}%</span>
+                          </div>
+                          <input
+                            type="range" min={1} max={20} step={1}
+                            value={protectedCfg.unlockPercent}
+                            onChange={e => setProtectedCfg(c => ({ ...c, unlockPercent: Number(e.target.value) }))}
+                            className="w-full accent-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-blue-500/15 bg-blue-500/[0.04] p-4">
+                        {(() => {
+                          const s = protectedSchedule(protectedCfg, 100);
+                          return (
+                            <p className="text-xs text-blue-300/80 leading-relaxed">
+                              <span className="font-semibold text-blue-300">Preview:</span> over <b>{protectedCfg.vestingYears} years</b>, beneficiaries unlock <b>{protectedCfg.unlockPercent}%</b> {protectedCfg.unlockFrequency === "monthly" ? "every month" : "every quarter"} ({s.totalPeriods} total unlocks).
+                            </p>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {strategyKind === "generational" && (
+                    <div className="space-y-4 mb-8">
+                      <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5 space-y-5">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs uppercase tracking-widest text-white/40">Estimated yield (APY)</span>
+                            <span className="text-sm font-bold text-white">{generationalCfg.estimatedApy}%</span>
+                          </div>
+                          <input
+                            type="range" min={1} max={15} step={0.5}
+                            value={generationalCfg.estimatedApy}
+                            onChange={e => setGenerationalCfg(c => ({ ...c, estimatedApy: Number(e.target.value) }))}
+                            className="w-full accent-purple-500"
+                          />
+                          <p className="text-xs text-white/25 mt-1.5">Mock projection — actual on-chain yield will be wired post-hackathon.</p>
+                        </div>
+                        <div>
+                          <span className="text-xs uppercase tracking-widest text-white/40 block mb-2">Payout cadence</span>
+                          <div className="grid grid-cols-3 gap-2">
+                            {(["monthly", "quarterly", "yearly"] as const).map(f => (
+                              <button key={f}
+                                onClick={() => setGenerationalCfg(c => ({ ...c, payoutFrequency: f }))}
+                                className={`py-2 rounded-xl text-sm font-medium transition-all border ${
+                                  generationalCfg.payoutFrequency === f
+                                    ? "border-white/30 bg-white/[0.07] text-white"
+                                    : "border-white/8 text-white/40 hover:border-white/15"
+                                }`}>
+                                {f.charAt(0).toUpperCase() + f.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-purple-500/15 bg-purple-500/[0.04] p-4 space-y-3">
+                        {(() => {
+                          const points = projectGenerational(generationalCfg, 100, 10);
+                          const max = points[points.length - 1].value;
+                          const min = points[0].value;
+                          const w = 280, h = 60;
+                          const path = points.map((p, i) => {
+                            const x = (i / (points.length - 1)) * w;
+                            const y = h - ((p.value - min) / (max - min || 1)) * h;
+                            return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+                          }).join(" ");
+                          return (
+                            <>
+                              <p className="text-xs text-purple-300/80 leading-relaxed">
+                                <span className="font-semibold text-purple-300">Projection:</span> 100 SOL principal at {generationalCfg.estimatedApy}% APY grows to <b>{max.toFixed(1)} SOL</b> in 10 years. Family receives ~<b>{monthlyPayout(generationalCfg, 100).toFixed(2)} SOL {generationalCfg.payoutFrequency}</b>.
+                              </p>
+                              <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-14">
+                                <path d={path} fill="none" stroke="#a855f7" strokeWidth="1.5" />
+                                <path d={`${path} L${w},${h} L0,${h} Z`} fill="url(#g)" opacity="0.25" />
+                                <defs>
+                                  <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+                                    <stop offset="0%" stopColor="#a855f7" />
+                                    <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+                                  </linearGradient>
+                                </defs>
+                              </svg>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {strategyKind === "custom" && (
+                    <div className="space-y-3 mb-8">
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { t: "Age restrictions", d: "Unlock at 18 / 21 / 25" },
+                          { t: "Milestone unlocks", d: "Graduation, marriage, etc." },
+                          { t: "Education fund", d: "Tuition-linked release" },
+                          { t: "Housing fund", d: "Down-payment vesting" },
+                          { t: "Custom vesting", d: "Per-heir schedules" },
+                          { t: "Charitable tail", d: "Auto-donate residual" },
+                        ].map(o => (
+                          <div key={o.t} className="rounded-xl border border-white/8 bg-white/[0.02] p-3 opacity-60">
+                            <div className="text-sm font-medium text-white/80">{o.t}</div>
+                            <div className="text-xs text-white/30 mt-0.5">{o.d}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.04] p-4">
+                        <p className="text-xs text-amber-300/80 leading-relaxed">
+                          <span className="font-semibold text-amber-300">Coming after the hackathon.</span> Custom Strategy lets you compose programmable rules for each heir. For now, choose one of the three core strategies.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <NavButtons onNext={next} />
+                </div>
+              )}
+
+              {/* ── STEP 4: Contact & Recovery ────────────────────────────── */}
+              {phase === 4 && (
                 <div>
                   <h1 className="text-4xl font-bold tracking-tight mb-3" style={{ letterSpacing: "-0.03em" }}>
                     Stay informed
@@ -544,10 +788,10 @@ function SetupContent() {
                   </p>
 
                   <AnimatePresence>
-                    {hints.step3 && (
+                    {hints.step4 && (
                       <HintCard
                         text="You'll receive reminder emails before your Life Check deadline so you never miss a confirmation. This information is optional but recommended."
-                        onDismiss={() => setHints(h => ({ ...h, step3: false }))}
+                        onDismiss={() => setHints(h => ({ ...h, step4: false }))}
                       />
                     )}
                   </AnimatePresence>
@@ -584,12 +828,12 @@ function SetupContent() {
                     </p>
                   </div>
 
-                  <NavButtons onNext={next} skipLabel="Skip for now" onSkip={() => setPhase(4)} />
+                  <NavButtons onNext={next} skipLabel="Skip for now" onSkip={() => setPhase(5)} />
                 </div>
               )}
 
-              {/* ── STEP 4: Final Review ───────────────────────────────────── */}
-              {phase === 4 && (
+              {/* ── STEP 5: Final Review ───────────────────────────────────── */}
+              {phase === 5 && (
                 <div>
                   <h1 className="text-4xl font-bold tracking-tight mb-3" style={{ letterSpacing: "-0.03em" }}>
                     Your Continuity Plan
@@ -636,12 +880,37 @@ function SetupContent() {
                       </div>
                     </div>
 
+                    {/* Legacy Strategy */}
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-white/30 uppercase tracking-widest">Legacy Strategy</span>
+                        <button onClick={() => setPhase(3)} className="text-xs text-white/30 hover:text-white/60 transition-colors">Edit</button>
+                      </div>
+                      <div className="flex items-center gap-3 mt-2">
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ background: STRATEGY_META[strategyKind].accent }}
+                        />
+                        <span className="text-base font-bold text-white">{STRATEGY_META[strategyKind].title}</span>
+                      </div>
+                      {strategyKind === "protected" && (
+                        <p className="text-xs text-white/40 mt-2">
+                          {protectedCfg.unlockPercent}% {protectedCfg.unlockFrequency} over {protectedCfg.vestingYears} {protectedCfg.vestingYears === 1 ? "year" : "years"}
+                        </p>
+                      )}
+                      {strategyKind === "generational" && (
+                        <p className="text-xs text-white/40 mt-2">
+                          {generationalCfg.estimatedApy}% APY · {generationalCfg.payoutFrequency} payouts
+                        </p>
+                      )}
+                    </div>
+
                     {/* Contact */}
                     {(email || backupEmail) && (
                       <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-xs text-white/30 uppercase tracking-widest">Reminder Contact</span>
-                          <button onClick={() => setPhase(3)} className="text-xs text-white/30 hover:text-white/60 transition-colors">Edit</button>
+                          <button onClick={() => setPhase(4)} className="text-xs text-white/30 hover:text-white/60 transition-colors">Edit</button>
                         </div>
                         {email && <p className="text-sm text-white/60">{email}</p>}
                         {backupEmail && <p className="text-sm text-white/30 mt-1">{backupEmail} <span className="text-xs text-white/15">backup</span></p>}
