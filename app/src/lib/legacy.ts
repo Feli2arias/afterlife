@@ -118,3 +118,37 @@ export function strategyLabel(s: LegacyStrategy | null): string {
   if (!s) return "Instant Transfer";
   return STRATEGY_META[s.kind].title;
 }
+
+export function encodeStrategyForUrl(s: LegacyStrategy): string {
+  const json = JSON.stringify(s);
+  if (typeof window === "undefined") {
+    return Buffer.from(json, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export function decodeStrategyFromUrl(token: string): LegacyStrategy | null {
+  try {
+    const padded = token.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((token.length + 3) % 4);
+    const json = typeof window === "undefined"
+      ? Buffer.from(padded, "base64").toString("utf-8")
+      : decodeURIComponent(escape(atob(padded)));
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed === "object" && typeof parsed.kind === "string") {
+      return parsed as LegacyStrategy;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function strategyHumanSummary(s: LegacyStrategy): string {
+  if (s.kind === "instant") return "Full amount available immediately";
+  if (s.kind === "protected") {
+    const periodLabel = s.unlockFrequency === "monthly" ? "month" : "quarter";
+    return `Released ${s.unlockFrequency} over ${s.vestingYears} ${s.vestingYears === 1 ? "year" : "years"} — equal portions each ${periodLabel}`;
+  }
+  if (s.kind === "generational") return `Principal preserved · ${s.payoutFrequency} yield payouts @ ~${s.estimatedApy}% APY`;
+  return "Custom programmable rules";
+}

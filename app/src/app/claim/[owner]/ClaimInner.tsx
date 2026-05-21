@@ -11,6 +11,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useCreateWallet, useExportWallet } from "@privy-io/react-auth/solana";
 import PrivyClaimProvider from "@/components/PrivyClaimProvider";
+import {
+  type LegacyStrategy,
+  STRATEGY_META,
+  decodeStrategyFromUrl,
+  strategyHumanSummary,
+  protectedSchedule,
+  monthlyPayout,
+} from "@/lib/legacy";
 
 interface VaultData {
   owner: { toBase58: () => string };
@@ -189,6 +197,11 @@ function ClaimContent({
   const heirIdx = Number.isFinite(heirIdxRaw) && heirIdxRaw >= 0 ? heirIdxRaw : 0;
   const displayShare = vault?.beneficiaries[heirIdx]?.shareBps ?? 0;
 
+  const strategyToken = searchParams.get("s");
+  const strategy: LegacyStrategy | null = isDemo
+    ? { kind: "protected", vestingYears: 1, unlockFrequency: "monthly" }
+    : strategyToken ? decodeStrategyFromUrl(strategyToken) : null;
+
   // After execution tokens are in vault — use executedTotal. Before, show owner's wSOL.
   const executedTotal = vault?.executedTotal?.toNumber?.() ?? 0;
   const claimableAmount = vault && !vault.isActive && executedTotal > 0
@@ -240,8 +253,36 @@ function ClaimContent({
     : publicKey?.toBase58();
 
   return (
-    <div style={{ minHeight: "100vh", background: "#030303", color: "#fff", fontFamily: SF, position: "relative", overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#030303", color: "#fff", fontFamily: SF, position: "relative", overflow: "hidden" }}>
       <div className="bg-noise" style={{ position: "fixed", inset: 0, zIndex: 100, pointerEvents: "none", mixBlendMode: "overlay" }} />
+
+      {/* Floating light orbs — light through glass effect */}
+      <motion.div
+        aria-hidden
+        style={{ position: "fixed", top: "-15%", left: "-10%", width: 520, height: 520, borderRadius: "50%", filter: "blur(110px)", background: "radial-gradient(circle, rgba(168,85,247,0.28), transparent 70%)", pointerEvents: "none", zIndex: 0 }}
+        animate={{ x: [0, 180, -80, 0], y: [0, 120, -60, 0] }}
+        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        aria-hidden
+        style={{ position: "fixed", bottom: "-20%", right: "-10%", width: 600, height: 600, borderRadius: "50%", filter: "blur(120px)", background: "radial-gradient(circle, rgba(59,130,246,0.22), transparent 70%)", pointerEvents: "none", zIndex: 0 }}
+        animate={{ x: [0, -150, 100, 0], y: [0, -90, 50, 0] }}
+        transition={{ duration: 28, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        aria-hidden
+        style={{ position: "fixed", top: "30%", right: "10%", width: 380, height: 380, borderRadius: "50%", filter: "blur(100px)", background: "radial-gradient(circle, rgba(16,185,129,0.18), transparent 70%)", pointerEvents: "none", zIndex: 0 }}
+        animate={{ x: [0, -100, 60, 0], y: [0, 80, -40, 0] }}
+        transition={{ duration: 32, repeat: Infinity, ease: "easeInOut" }}
+      />
+      {/* Glass sweep — a soft beam passing through the page */}
+      <motion.div
+        aria-hidden
+        style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, background: "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.04) 50%, transparent 70%)" }}
+        animate={{ x: ["-100%", "100%"] }}
+        transition={{ duration: 14, repeat: Infinity, ease: "linear", repeatDelay: 6 }}
+      />
+
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.04) 0%, transparent 60%)" }} />
 
       <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 20px" }}>
@@ -273,7 +314,7 @@ function ClaimContent({
 
                 {/* Amount card */}
                 {!loading && vault && (
-                  <div style={{ borderRadius: 20, padding: "28px 24px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", textAlign: "center", marginBottom: 24 }}>
+                  <div style={{ borderRadius: 20, padding: "28px 24px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", textAlign: "center", marginBottom: 16, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
                     <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(255,255,255,0.2)" }}>Your share</p>
                     <p style={{ margin: "0 0 4px", fontSize: 52, fontWeight: 700, letterSpacing: "-0.04em", color: "white", lineHeight: 1 }}>
                       {displaySol}
@@ -285,6 +326,12 @@ function ClaimContent({
                     </div>
                   </div>
                 )}
+
+                {/* Inheritance plan card */}
+                {!loading && vault && strategy && (
+                  <InheritancePlanCard strategy={strategy} totalShare={parseFloat(displaySol)} />
+                )}
+                {!loading && vault && strategy && <div style={{ height: 24 }} />}
 
                 {loading && <div style={{ textAlign: "center", padding: "32px 0", color: "rgba(255,255,255,0.15)", fontSize: 13 }}>Loading vault...</div>}
 
@@ -728,5 +775,131 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
       <span style={{ color: "rgba(255,255,255,0.3)", fontFamily: SF }}>{label}</span>
       <span style={{ color: "rgba(255,255,255,0.7)", fontFamily: mono ? MONO : SF }}>{value}</span>
     </div>
+  );
+}
+
+// ── Inheritance plan card ──────────────────────────────────────────────────────
+
+function InheritancePlanCard({ strategy, totalShare }: { strategy: LegacyStrategy; totalShare: number }) {
+  const meta = STRATEGY_META[strategy.kind];
+
+  let detail: { firstUnlock: string; firstAmount: string; cadence: string; totalPeriods?: number } = {
+    firstUnlock: "Now",
+    firstAmount: `${totalShare.toFixed(3)} SOL`,
+    cadence: "Single transfer",
+  };
+
+  if (strategy.kind === "protected") {
+    const s = protectedSchedule(strategy, totalShare);
+    detail = {
+      firstUnlock: "Now",
+      firstAmount: `${s.perUnlock.toFixed(4)} SOL`,
+      cadence: `${strategy.unlockFrequency === "monthly" ? "Monthly" : "Quarterly"} for ${strategy.vestingYears} ${strategy.vestingYears === 1 ? "year" : "years"}`,
+      totalPeriods: s.totalPeriods,
+    };
+  } else if (strategy.kind === "generational") {
+    const payout = monthlyPayout(strategy, totalShare);
+    detail = {
+      firstUnlock: "Yield only",
+      firstAmount: `~${payout.toFixed(4)} SOL`,
+      cadence: `${strategy.payoutFrequency.charAt(0).toUpperCase() + strategy.payoutFrequency.slice(1)} payouts @ ${strategy.estimatedApy}% APY`,
+    };
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.15, duration: 0.5 }}
+      style={{
+        borderRadius: 20,
+        padding: "20px 22px",
+        background: "rgba(255,255,255,0.025)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: -40,
+          right: -40,
+          width: 140,
+          height: 140,
+          borderRadius: "50%",
+          background: `${meta.accent}1a`,
+          filter: "blur(30px)",
+          pointerEvents: "none",
+        }}
+      />
+
+      <div style={{ position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: meta.accent }} />
+          <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", fontFamily: MONO }}>
+            Inheritance Plan
+          </span>
+        </div>
+
+        <h3 style={{ margin: "0 0 6px", fontSize: 20, fontWeight: 600, letterSpacing: "-0.02em", color: "white" }}>
+          {meta.title}
+        </h3>
+        <p style={{ margin: "0 0 18px", fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.55 }}>
+          {strategyHumanSummary(strategy)}
+        </p>
+
+        {strategy.kind !== "custom" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.2)" }}>
+                {strategy.kind === "generational" ? "Per payout" : "First unlock"}
+              </p>
+              <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "white", letterSpacing: "-0.01em" }}>
+                {detail.firstAmount}
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
+                {detail.firstUnlock}
+              </p>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.2)" }}>
+                Schedule
+              </p>
+              <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.4 }}>
+                {detail.cadence}
+              </p>
+              {detail.totalPeriods !== undefined && (
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
+                  {detail.totalPeriods} total unlocks
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {strategy.kind === "protected" && (() => {
+          const totalPeriods = Math.min(24, detail.totalPeriods ?? 0);
+          return (
+            <div style={{ marginTop: 16, display: "flex", gap: 3, height: 28, alignItems: "flex-end" }}>
+              {Array.from({ length: totalPeriods }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: `${40 + (i % 4) * 12 + 40}%`,
+                    borderRadius: 2,
+                    background: i === 0 ? meta.accent : `${meta.accent}${i < 4 ? "aa" : i < 8 ? "77" : "44"}`,
+                  }}
+                />
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+    </motion.div>
   );
 }

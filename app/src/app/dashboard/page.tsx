@@ -24,6 +24,7 @@ import {
   protectedSchedule,
   projectGenerational,
   monthlyPayout,
+  encodeStrategyForUrl,
 } from "@/lib/legacy";
 
 const SF = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif";
@@ -415,6 +416,7 @@ function DashboardContent() {
           setAutoExecError("Distribution executed on-chain, but heir emails not found. Emails were not sent.");
         } else {
           const origin = window.location.origin;
+          const strategyToken = strategy ? `&s=${encodeStrategyForUrl(strategy)}` : "";
           const results = await Promise.allSettled(heirs.map((h, idx) =>
             fetch("/api/send-email", {
               method: "POST",
@@ -422,7 +424,7 @@ function DashboardContent() {
               body: JSON.stringify({
                 to: h.email, name: h.name, share: h.share,
                 ownerAddress: publicKey.toBase58(),
-                claimUrl: `${origin}/claim/${publicKey.toBase58()}?heir=${idx}`,
+                claimUrl: `${origin}/claim/${publicKey.toBase58()}?heir=${idx}${strategyToken}`,
               }),
             }).then(r => { if (!r.ok) throw new Error(`Email to ${h.email} failed`); })
           ));
@@ -545,6 +547,7 @@ function DashboardContent() {
         setSimMsg("Sending emails...");
         const heirs: { email: string; name: string; share: number }[] = JSON.parse(stored);
         const origin = window.location.origin;
+        const strategyToken = strategy ? `&s=${encodeStrategyForUrl(strategy)}` : "";
         await Promise.allSettled(heirs.map((h, idx) =>
           fetch("/api/send-email", {
             method: "POST",
@@ -552,7 +555,7 @@ function DashboardContent() {
             body: JSON.stringify({
               to: h.email, name: h.name, share: h.share,
               ownerAddress: publicKey.toBase58(),
-              claimUrl: `${origin}/claim/${publicKey.toBase58()}?heir=${idx}`,
+              claimUrl: `${origin}/claim/${publicKey.toBase58()}?heir=${idx}${strategyToken}`,
             }),
           })
         ));
