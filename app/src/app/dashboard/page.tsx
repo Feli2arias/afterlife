@@ -202,7 +202,7 @@ function LegacyOverview({ strategy, balance }: { strategy: LegacyStrategy | null
           const sched = protectedSchedule(s, balance);
           return (
             <>
-              <StatCard label="Unlock per period" value={`${sched.perUnlock.toFixed(4)} SOL`} sub={`${s.unlockPercent}% ${s.unlockFrequency}`} />
+              <StatCard label="Unlock per period" value={`${sched.perUnlock.toFixed(4)} SOL`} sub={`${sched.unlockPercent.toFixed(2)}% ${s.unlockFrequency}`} />
               <StatCard label="Vesting duration" value={`${s.vestingYears} ${s.vestingYears === 1 ? "yr" : "yrs"}`} sub={`${sched.totalPeriods} total unlocks`} />
             </>
           );

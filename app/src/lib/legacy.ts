@@ -8,7 +8,6 @@ export interface ProtectedConfig {
   kind: "protected";
   vestingYears: number;
   unlockFrequency: "monthly" | "quarterly";
-  unlockPercent: number;
 }
 
 export interface GenerationalConfig {
@@ -28,7 +27,6 @@ export const DEFAULT_PROTECTED: ProtectedConfig = {
   kind: "protected",
   vestingYears: 5,
   unlockFrequency: "monthly",
-  unlockPercent: 5,
 };
 
 export const DEFAULT_GENERATIONAL: GenerationalConfig = {
@@ -87,12 +85,14 @@ export function unlocksPerYear(freq: "monthly" | "quarterly"): number {
 export function protectedSchedule(cfg: ProtectedConfig, totalAssets: number) {
   const perPeriod = unlocksPerYear(cfg.unlockFrequency);
   const totalPeriods = cfg.vestingYears * perPeriod;
-  const perUnlock = totalAssets * (cfg.unlockPercent / 100);
+  const unlockPercent = totalPeriods > 0 ? 100 / totalPeriods : 0;
+  const perUnlock = totalAssets / totalPeriods;
   return {
     perPeriod,
     totalPeriods,
+    unlockPercent,
     perUnlock,
-    totalDistributed: Math.min(totalAssets, perUnlock * totalPeriods),
+    totalDistributed: totalAssets,
   };
 }
 

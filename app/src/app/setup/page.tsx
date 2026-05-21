@@ -656,25 +656,14 @@ function SetupContent() {
                             ))}
                           </div>
                         </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs uppercase tracking-widest text-white/40">Unlock per period</span>
-                            <span className="text-sm font-bold text-white">{protectedCfg.unlockPercent}%</span>
-                          </div>
-                          <input
-                            type="range" min={1} max={20} step={1}
-                            value={protectedCfg.unlockPercent}
-                            onChange={e => setProtectedCfg(c => ({ ...c, unlockPercent: Number(e.target.value) }))}
-                            className="w-full accent-blue-500"
-                          />
-                        </div>
                       </div>
                       <div className="rounded-2xl border border-blue-500/15 bg-blue-500/[0.04] p-4">
                         {(() => {
                           const s = protectedSchedule(protectedCfg, 100);
+                          const periodLabel = protectedCfg.unlockFrequency === "monthly" ? "month" : "quarter";
                           return (
                             <p className="text-xs text-blue-300/80 leading-relaxed">
-                              <span className="font-semibold text-blue-300">Preview:</span> over <b>{protectedCfg.vestingYears} years</b>, beneficiaries unlock <b>{protectedCfg.unlockPercent}%</b> {protectedCfg.unlockFrequency === "monthly" ? "every month" : "every quarter"} ({s.totalPeriods} total unlocks).
+                              <span className="font-semibold text-blue-300">Preview:</span> over <b>{protectedCfg.vestingYears} {protectedCfg.vestingYears === 1 ? "year" : "years"}</b>, beneficiaries receive <b>{s.unlockPercent.toFixed(2)}%</b> of their share every {periodLabel} — <b>{s.totalPeriods} unlocks</b> until fully distributed.
                             </p>
                           );
                         })()}
@@ -893,11 +882,14 @@ function SetupContent() {
                         />
                         <span className="text-base font-bold text-white">{STRATEGY_META[strategyKind].title}</span>
                       </div>
-                      {strategyKind === "protected" && (
-                        <p className="text-xs text-white/40 mt-2">
-                          {protectedCfg.unlockPercent}% {protectedCfg.unlockFrequency} over {protectedCfg.vestingYears} {protectedCfg.vestingYears === 1 ? "year" : "years"}
-                        </p>
-                      )}
+                      {strategyKind === "protected" && (() => {
+                        const s = protectedSchedule(protectedCfg, 100);
+                        return (
+                          <p className="text-xs text-white/40 mt-2">
+                            {s.unlockPercent.toFixed(2)}% every {protectedCfg.unlockFrequency === "monthly" ? "month" : "quarter"} over {protectedCfg.vestingYears} {protectedCfg.vestingYears === 1 ? "year" : "years"}
+                          </p>
+                        );
+                      })()}
                       {strategyKind === "generational" && (
                         <p className="text-xs text-white/40 mt-2">
                           {generationalCfg.estimatedApy}% APY · {generationalCfg.payoutFrequency} payouts
