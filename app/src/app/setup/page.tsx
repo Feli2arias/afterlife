@@ -544,7 +544,7 @@ function SetupContent() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-white/60">30 seconds</span>
+                      <span className="text-sm font-bold text-white/60">15 seconds</span>
                       <span className="text-xs text-white/25 uppercase tracking-widest">Demo only</span>
                     </div>
                     <span className="text-[10px] font-bold tracking-widest uppercase border border-amber-500/30 text-amber-400/70 px-2 py-0.5 rounded-full">Test</span>
@@ -879,7 +879,7 @@ function SetupContent() {
                       </div>
                       <div className="flex items-baseline gap-3 mt-2">
                         <span className="text-2xl font-bold text-white">
-                          {isTestInterval ? "30 seconds (test)" : `Every ${intervalDays} days`}
+                          {isTestInterval ? "15 seconds (test)" : `Every ${intervalDays} days`}
                         </span>
                         {!isTestInterval && gracePeriodDays > 0 && <span className="text-sm text-white/30">+{gracePeriodDays}d grace</span>}
                       </div>

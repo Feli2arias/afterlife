@@ -375,7 +375,7 @@ function DashboardContent() {
       const testKey = `afterlife_test_30s_${publicKey.toBase58()}`;
       if (sessionStorage.getItem(testKey)) {
         sessionStorage.removeItem(testKey);
-        setDemoCountdownEnd(Date.now() + 30_000);
+        setDemoCountdownEnd(Date.now() + 15_000);
       }
     }
     if (isDemo) {
@@ -452,11 +452,11 @@ function DashboardContent() {
       return;
     }
     if (!publicKey || !wallet) return;
-    // Test mode: re-arm the 30s countdown without touching on-chain.
+    // Test mode: re-arm the 15s countdown without touching on-chain.
     // The vault is pre-expired (forceExpire ran at setup); calling checkin
     // would un-expire it and the next auto-execute would fail.
     if (demoCountdownEnd !== null) {
-      setDemoCountdownEnd(Date.now() + 30_000);
+      setDemoCountdownEnd(Date.now() + 15_000);
       setAutoExecError("");
       setHasPinged(true);
       setTimeout(() => setHasPinged(false), 3000);
@@ -824,7 +824,7 @@ function DashboardContent() {
 
                 {demoCountdownEnd && (
                   <p className="mt-6 text-xs text-amber-400/60 animate-pulse">
-                    {autoExecuting ? "Executing protocol..." : "Protocol executes in less than 1 minute..."}
+                    {autoExecuting ? "Executing protocol..." : "Protocol executes in seconds..."}
                   </p>
                 )}
 
