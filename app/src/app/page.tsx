@@ -234,6 +234,36 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
 
       <div className="max-w-7xl w-full mx-auto relative z-10 flex pt-10 md:pt-14">
         <motion.div style={{ opacity, y: yText }} className="flex flex-col items-start text-left space-y-8 max-w-2xl">
+          {/* Award laurel — DEV3PACK */}
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.3 }}
+            className="inline-flex items-center gap-3 -mb-2"
+          >
+            <svg width="22" height="34" viewBox="0 0 22 34" fill="none" aria-hidden>
+              <path d="M20 2C14 4 8 9 5 16c-3 7-2 12 1 16" stroke="#d4af37" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+              <path d="M19 6c-2 .4-4 1.6-5.6 3.6" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M16 11c-2 .4-3.6 1.4-5 3" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M13 16c-2 .4-3.4 1.4-4.6 3" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M11 22c-1.8.4-3 1.4-4 3" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M10 28c-1.4.4-2.4 1.2-3 2.4" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+            <div className="flex flex-col items-center leading-tight">
+              <span className="text-[9px] font-bold tracking-[0.25em] uppercase text-[#d4af37]/80">Official Selection</span>
+              <span className="text-[13px] font-bold tracking-[0.18em] uppercase text-[#f5d97a]" style={{ textShadow: "0 0 16px rgba(212,175,55,0.35)" }}>dev3pack '26</span>
+              <span className="text-[9px] font-medium tracking-[0.22em] uppercase text-[#d4af37]/60">Accelerator</span>
+            </div>
+            <svg width="22" height="34" viewBox="0 0 22 34" fill="none" aria-hidden>
+              <path d="M2 2c6 2 12 7 15 14 3 7 2 12-1 16" stroke="#d4af37" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+              <path d="M3 6c2 .4 4 1.6 5.6 3.6" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M6 11c2 .4 3.6 1.4 5 3" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M9 16c2 .4 3.4 1.4 4.6 3" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M11 22c1.8.4 3 1.4 4 3" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M12 28c1.4.4 2.4 1.2 3 2.4" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </motion.div>
+
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
