@@ -631,8 +631,56 @@ function DashboardContent() {
   }));
 
   return (
-    <div className="min-h-screen bg-[#030303] text-white" style={{ fontFamily: SF }}>
+    <div className="min-h-screen bg-[#030303] text-white relative overflow-hidden" style={{ fontFamily: SF }}>
       <div className="bg-noise fixed inset-0 z-[100] pointer-events-none mix-blend-overlay" />
+
+      {/* Ambient warm light orbs — gold / white / amber */}
+      <motion.div
+        aria-hidden
+        className="fixed pointer-events-none rounded-full"
+        style={{
+          top: "-15%", left: "-10%", width: 560, height: 560,
+          filter: "blur(120px)",
+          background: "radial-gradient(circle, rgba(251,191,36,0.22), transparent 70%)",
+          zIndex: 0,
+        }}
+        animate={{ x: [0, 180, -80, 0], y: [0, 120, -60, 0] }}
+        transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        aria-hidden
+        className="fixed pointer-events-none rounded-full"
+        style={{
+          bottom: "-20%", right: "-10%", width: 640, height: 640,
+          filter: "blur(130px)",
+          background: "radial-gradient(circle, rgba(255,255,255,0.16), transparent 70%)",
+          zIndex: 0,
+        }}
+        animate={{ x: [0, -160, 100, 0], y: [0, -100, 60, 0] }}
+        transition={{ duration: 30, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        aria-hidden
+        className="fixed pointer-events-none rounded-full"
+        style={{
+          top: "35%", right: "15%", width: 380, height: 380,
+          filter: "blur(110px)",
+          background: "radial-gradient(circle, rgba(245,158,11,0.18), transparent 70%)",
+          zIndex: 0,
+        }}
+        animate={{ x: [0, -110, 70, 0], y: [0, 80, -40, 0] }}
+        transition={{ duration: 34, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        aria-hidden
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          zIndex: 0,
+          background: "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.04) 50%, transparent 70%)",
+        }}
+        animate={{ x: ["-100%", "100%"] }}
+        transition={{ duration: 16, repeat: Infinity, ease: "linear", repeatDelay: 8 }}
+      />
 
       <style>{`
         @keyframes scan {
@@ -698,42 +746,22 @@ function DashboardContent() {
                 transition={{ duration: 0.5, ease: "anticipate" }}
                 className="flex-1 flex flex-col items-center justify-center text-center mt-10"
               >
-                {/* Rotating gold/white light behind numbers */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[-1] overflow-hidden">
+                {/* Check-in confirmation pulse */}
+                {hasPinged && (
                   <motion.div
                     aria-hidden
-                    className="w-[70vw] h-[70vw] max-w-[900px] max-h-[900px] rounded-full"
-                    style={{
-                      filter: "blur(80px)",
-                      background:
-                        "conic-gradient(from 0deg, transparent 0deg, rgba(251,191,36,0.18) 40deg, rgba(255,255,255,0.28) 90deg, rgba(251,191,36,0.18) 140deg, transparent 180deg, transparent 360deg)",
-                    }}
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
-                  />
-                  <motion.div
-                    aria-hidden
-                    className="absolute w-[55vw] h-[55vw] max-w-[700px] max-h-[700px] rounded-full"
-                    style={{
-                      filter: "blur(90px)",
-                      background:
-                        "conic-gradient(from 180deg, transparent 0deg, rgba(255,255,255,0.12) 60deg, rgba(251,191,36,0.14) 110deg, transparent 180deg, transparent 360deg)",
-                    }}
-                    animate={{ rotate: -360 }}
-                    transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-                  />
-                  {hasPinged && (
-                    <motion.div
-                      aria-hidden
-                      className="absolute w-[45vw] h-[45vw] max-w-[600px] max-h-[600px] rounded-full"
-                      style={{ background: "radial-gradient(circle, rgba(74,222,128,0.25), transparent 60%)", filter: "blur(60px)" }}
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1.2, opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 1.5 }}
+                    className="fixed inset-0 flex items-center justify-center pointer-events-none z-0"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 1.2 }}
+                  >
+                    <div
+                      className="w-[60vw] h-[60vw] max-w-[700px] max-h-[700px] rounded-full"
+                      style={{ background: "radial-gradient(circle, rgba(74,222,128,0.22), transparent 65%)", filter: "blur(70px)" }}
                     />
-                  )}
-                </div>
+                  </motion.div>
+                )}
 
                 <div className="mb-6 flex flex-col items-center">
                   <p className="text-[#666] font-mono text-sm tracking-[0.3em] uppercase mb-12" style={{ fontFamily: MONO }}>
