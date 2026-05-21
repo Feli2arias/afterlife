@@ -698,9 +698,41 @@ function DashboardContent() {
                 transition={{ duration: 0.5, ease: "anticipate" }}
                 className="flex-1 flex flex-col items-center justify-center text-center mt-10"
               >
-                {/* Pulse glow */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[-1]">
-                  <div className={`w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] rounded-full blur-[120px] transition-all duration-[3000ms] ${hasPinged ? "bg-white/10 scale-110" : "bg-[#030303] scale-100"}`} />
+                {/* Rotating gold/white light behind numbers */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[-1] overflow-hidden">
+                  <motion.div
+                    aria-hidden
+                    className="w-[70vw] h-[70vw] max-w-[900px] max-h-[900px] rounded-full"
+                    style={{
+                      filter: "blur(80px)",
+                      background:
+                        "conic-gradient(from 0deg, transparent 0deg, rgba(251,191,36,0.18) 40deg, rgba(255,255,255,0.28) 90deg, rgba(251,191,36,0.18) 140deg, transparent 180deg, transparent 360deg)",
+                    }}
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
+                  />
+                  <motion.div
+                    aria-hidden
+                    className="absolute w-[55vw] h-[55vw] max-w-[700px] max-h-[700px] rounded-full"
+                    style={{
+                      filter: "blur(90px)",
+                      background:
+                        "conic-gradient(from 180deg, transparent 0deg, rgba(255,255,255,0.12) 60deg, rgba(251,191,36,0.14) 110deg, transparent 180deg, transparent 360deg)",
+                    }}
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
+                  />
+                  {hasPinged && (
+                    <motion.div
+                      aria-hidden
+                      className="absolute w-[45vw] h-[45vw] max-w-[600px] max-h-[600px] rounded-full"
+                      style={{ background: "radial-gradient(circle, rgba(74,222,128,0.25), transparent 60%)", filter: "blur(60px)" }}
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1.2, opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 1.5 }}
+                    />
+                  )}
                 </div>
 
                 <div className="mb-6 flex flex-col items-center">
