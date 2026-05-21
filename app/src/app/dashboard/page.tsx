@@ -288,6 +288,8 @@ function DashboardContent() {
       const provider = new AnchorProvider(connection, wallet, {});
       const program = getProgram(provider);
       await checkin(program, publicKey);
+      setDemoCountdownEnd(null);
+      setAutoExecError("");
       setHasPinged(true);
       setTimeout(() => setHasPinged(false), 3000);
       await loadVault();
