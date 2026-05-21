@@ -6,7 +6,8 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { getProgram, registerVault, cancelVault, forceCloseVault, forceExpire, fetchVaultConfig, vaultConfigExists, BeneficiaryInput } from "@/lib/afterlife";
-import { wrapAndApproveSOL } from "@/lib/delegate";
+import { wrapAndApproveSOL, approveDelegateForToken } from "@/lib/delegate";
+import { getAssociatedTokenAddress, getAccount, NATIVE_MINT } from "@solana/spl-token";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, ChevronRight, ChevronLeft, Info, Check, ArrowRight, ShieldCheck, AlertCircle, Zap, Shield, TreePine, Sparkles } from "lucide-react";
@@ -207,7 +208,10 @@ function SetupContent() {
     if (!publicKey || !wallet || !signTransaction) return;
     setDeploying(true); setDeployError("");
     try {
-      // Step 1: wrap SOL → wSOL and approve vault_config as delegate
+      // Step 1: wrap SOL → wSOL and approve vault_config as delegate.
+      // If user already wrapped (low native SOL but has wSOL), skip the wrap
+      // but still re-approve the delegate — otherwise execute_distribution
+      // fails with OwnerMismatch (0x4) when the keeper tries to sign as delegate.
       const nativeBal = await connection.getBalance(publicKey);
       const lamports = BigInt(nativeBal - 50_000_000); // keep 0.05 SOL for fees
       if (lamports > 0n) {
@@ -216,6 +220,18 @@ function SetupContent() {
           signTransaction as (tx: Transaction) => Promise<Transaction>
         );
         await connection.confirmTransaction(sig, "confirmed");
+      } else {
+        const wsolAta = await getAssociatedTokenAddress(NATIVE_MINT, publicKey);
+        try {
+          const acc = await getAccount(connection, wsolAta);
+          if (acc.amount > 0n) {
+            const sig = await approveDelegateForToken(
+              connection, publicKey, NATIVE_MINT, acc.amount,
+              signTransaction as (tx: Transaction) => Promise<Transaction>
+            );
+            await connection.confirmTransaction(sig, "confirmed");
+          }
+        } catch { /* no wSOL account — nothing to delegate */ }
       }
 
       // Step 2: register vault on-chain
