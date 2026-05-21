@@ -250,9 +250,9 @@ const HeroSection = ({ onLaunch }: { onLaunch: () => void }) => {
               <path d="M10 28c-1.4.4-2.4 1.2-3 2.4" stroke="#d4af37" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
             <div className="flex flex-col items-center leading-tight">
-              <span className="text-[9px] font-bold tracking-[0.25em] uppercase text-[#d4af37]/80">Official Selection</span>
-              <span className="text-[13px] font-bold tracking-[0.18em] uppercase text-[#f5d97a]" style={{ textShadow: "0 0 16px rgba(212,175,55,0.35)" }}>dev3pack '26</span>
-              <span className="text-[9px] font-medium tracking-[0.22em] uppercase text-[#d4af37]/60">Accelerator</span>
+              <span className="text-[9px] font-bold tracking-[0.25em] uppercase text-[#d4af37]/80">Official</span>
+              <span className="text-[13px] font-bold tracking-[0.18em] uppercase text-[#f5d97a]" style={{ textShadow: "0 0 16px rgba(212,175,55,0.35)" }}>dev3pack hackathon</span>
+              <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-[#f5d97a]/90">Winner</span>
             </div>
             <svg width="22" height="34" viewBox="0 0 22 34" fill="none" aria-hidden>
               <path d="M2 2c6 2 12 7 15 14 3 7 2 12-1 16" stroke="#d4af37" strokeWidth="1.4" strokeLinecap="round" fill="none" />
