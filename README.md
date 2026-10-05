@@ -1,126 +1,142 @@
-# Afterlife Protocol
+# Afterlife
 
-**Dead man's switch on Solana.** Set a timer, add heirs, and if you stop checking in, your SOL is automatically distributed to them — no lawyers, no intermediaries, no trust required.
+**A dead man's switch on Solana.** Set a check-in timer, name your heirs, and if you stop checking in, your assets are released to them on-chain, with no lawyers or intermediaries.
 
-**Live demo:** https://afterlife-sol.vercel.app  
-**Smart contract (devnet):** `4pKCmz43y8apgNqoAZVhYba11r5MyW6fiDnH3WGb16Uu`
+**Live demo:** https://afterlife-sol.vercel.app
+**Program (devnet):** `4pKCmz43y8apgNqoAZVhYba11r5MyW6fiDnH3WGb16Uu`
 
 ---
 
 ## How it works
 
-1. **Setup** — Connect your Phantom wallet, choose a check-in interval (30 days, 60 days, or 90 days), lock SOL into the vault, and add heir wallet addresses with their percentage splits.
-2. **Check in** — Visit the dashboard periodically and click "Check In" to reset the countdown. Small SOL fee per check-in.
-3. **Distribution** — If the countdown reaches zero and you haven't checked in, a keeper bot triggers `execute_distribution` on-chain and your SOL is sent directly to each heir's wallet.
-4. **Claim** — Heirs receive an email notification and can view their allocation at `afterlife-sol.vercel.app/claim/[your-wallet]`.
+1. **Setup.** Connect a Solana wallet, choose a check-in interval (30, 60 or 90 days) and an optional grace period, add up to 5 heirs by email with percentage splits, and pick a legacy strategy. SOL is wrapped to wSOL and the vault program is approved as delegate over it, so funds stay in your wallet until the switch fires.
+2. **Check in.** Open the dashboard and check in to reset the countdown. Each check-in carries a small protocol fee (0.005 SOL).
+3. **Distribution.** Once the timer and grace period run out, `execute_distribution` can be called by anyone. A keeper does it automatically, moving the delegated tokens into a vault PDA and fixing each heir's allocation.
+4. **Claim.** Each heir gets an email with a link to `/claim/[owner]`, proves control of that email through Privy (email or Google), and the backend authority submits the claim so the heir's share lands in their wallet. Heirs never pay gas.
 
-No one can steal the funds. The smart contract enforces the rules. Only the owner can cancel or modify the vault.
+Heirs are stored on-chain only as a SHA-256 hash of their email, so no personal data is written to the ledger.
+
+### Legacy strategies
+
+Besides an instant transfer, the setup flow lets the owner describe how the inheritance should be released: **Protected Inheritance** (vesting over several years, monthly or quarterly unlocks), **Generational Vault** (principal stays locked while yield is paid out) and **Custom Strategy** (free-form rules). These are modeled in the app (`app/src/lib/legacy.ts`) and shown on the heir claim page.
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Smart contract | Rust · Anchor framework · Solana devnet |
-| Frontend | Next.js 14 · TypeScript · Tailwind CSS · Framer Motion |
-| Wallet auth | Phantom / Solflare via `@solana/wallet-adapter` |
-| Heir login | Privy (email + Google OAuth) |
-| Email | Resend API |
+| Smart contract | Rust, Anchor, Solana devnet |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Framer Motion |
+| Wallets | Solana wallet adapter (Phantom, Solflare and others) |
+| Heir identity | Privy (email and Google login) |
+| Email | Nodemailer (Gmail SMTP) in the app, Resend in the keeper |
+| Keeper | Bun + `@coral-xyz/anchor` polling service |
+| Tokens | wSOL wrapping and SPL token delegation |
 | Hosting | Vercel |
-| Token handling | wSOL wrapping + SPL token delegation |
 
 ---
 
-## Local Development
+## Local development
 
 ### Prerequisites
 
-- Node.js 18+, Yarn
-- Rust + Anchor CLI (`anchor --version`)
-- Solana CLI (`solana --version`)
-- A funded devnet wallet at `~/.config/solana/id.json`
+- Node.js 20+ (or Bun)
+- Rust and Anchor CLI (only to build the program)
+- Solana CLI and a funded devnet wallet at `~/.config/solana/id.json`
 
-### 1. Clone
+### Run the frontend
 
 ```bash
 git clone https://github.com/Feli2arias/afterlife.git
-cd afterlife
+cd afterlife/app
+npm install
+npm run dev
 ```
 
-### 2. Install frontend deps
+Open http://localhost:3000.
 
-```bash
-cd app
-yarn install
-```
-
-### 3. Environment variables
-
-Create `app/.env.local`:
-
-```env
-NEXT_PUBLIC_PROGRAM_ID=4pKCmz43y8apgNqoAZVhYba11r5MyW6fiDnH3WGb16Uu
-NEXT_PUBLIC_RPC_URL=https://api.devnet.solana.com
-NEXT_PUBLIC_KEEPER_PUBKEY=<keeper-wallet-pubkey>
-KEEPER_PRIVATE_KEY=<keeper-wallet-private-key-base58>
-RESEND_API_KEY=<your-resend-api-key>
-NEXT_PUBLIC_PRIVY_APP_ID=<your-privy-app-id>
-```
-
-### 4. Run the frontend
-
-```bash
-cd app
-yarn dev
-```
-
-Open http://localhost:3000
-
-### 5. Build the smart contract (optional)
+### Build the program (optional)
 
 ```bash
 anchor build
 anchor deploy --provider.cluster devnet
 ```
 
+### Run the keeper (optional)
+
+The keeper polls for expired vaults, executes the distribution and notifies heirs. It reads the IDL from `target/idl`, so build the program first.
+
+```bash
+cd keeper
+bun install
+bun run start
+```
+
 ---
 
-## Smart Contract
+## Environment variables
 
-Located in `programs/afterlife/src/lib.rs`. Key instructions:
+Only names are listed. Frontend variables go in `app/.env.local`; every `NEXT_PUBLIC_*` variable is exposed to the browser.
+
+**Frontend (`app/`)**
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_PROGRAM_ID` | Deployed program ID (defaults to the devnet deployment) |
+| `NEXT_PUBLIC_HELIUS_RPC_URL` | Solana RPC endpoint (defaults to public devnet) |
+| `NEXT_PUBLIC_KEEPER_PUBKEY` | Public key of the backend authority / keeper |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app ID for heir login |
+| `KEEPER_PRIVATE_KEY` | Server-only. Keeper keypair used by the `claim` and `execute-distribution` API routes |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Server-only. SMTP credentials for heir notification emails |
+
+**Keeper (`keeper/`)**
+
+| Variable | Purpose |
+|---|---|
+| `HELIUS_RPC_URL` | Solana RPC endpoint (required) |
+| `VIGIL_PROGRAM_ID` | Program ID (required) |
+| `KEEPER_KEYPAIR_PATH` | Path to the keeper keypair (defaults to `~/.config/solana/id.json`) |
+| `APP_URL` | Base URL used in notification links |
+| `RESEND_API_KEY` | Resend API key for keeper emails |
+
+---
+
+## Smart contract
+
+Located in `programs/afterlife/`. Instructions:
 
 | Instruction | Description |
 |---|---|
-| `register_vault` | Create vault, set interval, add beneficiaries |
-| `checkin` | Reset the countdown clock |
-| `execute_distribution` | Keeper-triggered SOL distribution when expired |
-| `cancel_vault` | Owner closes the vault and reclaims SOL |
-| `force_expire` | Dev/demo: instantly expire the timer |
+| `register` | Create the vault: heirs (email hashes and basis-point shares), interval, grace period and backend authority |
+| `checkin` | Reset the countdown and pay the protocol fee |
+| `execute_distribution` | Permissionless once expired; moves delegated tokens into the vault PDA |
+| `claim` | Called by the backend authority after verifying the heir's email; transfers that heir's share |
+| `cancel` | Owner closes the vault and recovers rent |
+| `force_expire` | Demo only: backdates the last check-in to expire the timer |
+| `force_close` | Migration helper to close a vault from an older schema |
 
-PDAs use seed `b"vigil"` + owner pubkey. The program is deployed and verified on Solana devnet.
+The program was renamed from `vigil` to `afterlife`, so the on-chain module, the IDL and the PDA seed (`b"vigil"` plus the owner's public key) still use the old name.
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 afterlife/
-├── programs/afterlife/     # Anchor smart contract (Rust)
-│   └── src/lib.rs
-├── app/                    # Next.js frontend
+├── programs/afterlife/   # Anchor program (Rust)
+│   └── src/instructions/ # register, checkin, execute, claim, cancel, ...
+├── app/                  # Next.js frontend
 │   └── src/
-│       ├── app/
-│       │   ├── dashboard/  # Owner dashboard + countdown
-│       │   ├── setup/      # Vault creation flow
-│       │   └── claim/      # Heir claim page
-│       └── lib/
-│           ├── afterlife.ts        # Anchor client helpers
-│           ├── afterlife.idl.json  # Generated IDL
-│           └── delegate.ts         # wSOL wrap + approve
+│       ├── app/          # dashboard, setup, claim pages and API routes
+│       ├── components/   # wallet, Privy, setup steps, timer
+│       └── lib/          # Anchor client, IDL, wSOL delegation, legacy strategies
+├── keeper/               # Bun service: monitor, execute, notify
 └── Anchor.toml
 ```
 
 ---
 
-Built at a Solana hackathon. MIT License.
+## Status
+
+Built for a Solana hackathon (Dev3pack). The program is deployed on devnet and the full flow works end to end: setup, check-in, distribution, claim. It has not been audited and is not intended for mainnet funds. The app includes a short demo timer for presentations.
