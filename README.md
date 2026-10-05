@@ -140,3 +140,7 @@ afterlife/
 ## Status
 
 Built for a Solana hackathon (Dev3pack). The program is deployed on devnet and the full flow works end to end: setup, check-in, distribution, claim. It has not been audited and is not intended for mainnet funds. The app includes a short demo timer for presentations.
+
+## License
+
+[MIT](LICENSE)
